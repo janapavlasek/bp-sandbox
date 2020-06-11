@@ -22,12 +22,13 @@
 // }
 
 var ws;
-var NUM_PARTICLES = 10;
+var NUM_PARTICLES = 20;
 var SERVER_MSG = null;
 var NEW_MSG = false;
+var ALPHA = 0.7;
 
 function handleInit(props) {
-  ws.send({action: 'init', num_particles: NUM_PARTICLES});
+  ws.send(JSON.stringify({action: 'init', num_particles: NUM_PARTICLES}));
 }
 
 function InitButton() {
@@ -48,7 +49,7 @@ class Circle extends React.Component {
       borderRadius: "50%",
       width:"20px",
       height:"20px",
-      opacity:0.7,
+      opacity:ALPHA,
     };
     return (
       <div style={circleStyle}>
@@ -62,12 +63,12 @@ class Rectangle extends React.Component {
     var circleStyle = {
       position: "absolute",
       backgroundColor: this.props.colour,
-      top: this.props.y - 10 + "px",
-      left: this.props.x - 10 + "px",
+      top: this.props.y - 13.3 + "px",
+      left: this.props.x - 3.8 + "px",
       transform: "rotate(" + this.props.theta + "deg)",
-      width:"40px",
-      height:"20px",
-      opacity:0.7,
+      width:"26.6px",
+      height:"7.6px",
+      opacity:ALPHA,
     };
     return (
       <div style={circleStyle}>
@@ -90,8 +91,6 @@ class DrawCanvas extends React.Component {
         );
       }
     }
-    console.log("render circles");
-    console.log(circles);
     return circles;
   }
 
