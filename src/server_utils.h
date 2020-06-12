@@ -135,6 +135,11 @@ public:
         return msg;
     }
 
+    void setParticles(const std::map<std::string, ParticleList>& p)
+    {
+        particles = p;
+    }
+
     std::string algo;
     std::map<std::string, ParticleList> particles;
 };

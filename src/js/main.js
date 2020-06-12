@@ -1,31 +1,12 @@
-// 'use strict';
-
-// const e = React.createElement;
-
-// class LikeButton extends React.Component {
-//   constructor(props) {
-//     super(props);
-//     this.state = { liked: false };
-//   }
-
-//   render() {
-//     if (this.state.liked) {
-//       return 'You liked this.';
-//     }
-
-//     return e(
-//       'button',
-//       { onClick: () => this.setState({ liked: true }) },
-//       'Like'
-//     );
-//   }
-// }
-
 var ws;
-var NUM_PARTICLES = 20;
-var SERVER_MSG = null;
+var NUM_PARTICLES = 1;
 var NEW_MSG = false;
 var ALPHA = 0.7;
+
+// Shape info
+var CIRCLE_RADIUS = 20;
+var RECT_WIDTH = 26.6;
+var RECT_HEIGHT = 7.6;
 
 function handleInit(props) {
   ws.send(JSON.stringify({action: 'init', num_particles: NUM_PARTICLES}));
@@ -44,8 +25,8 @@ class Circle extends React.Component {
     var circleStyle = {
       position: "absolute",
       backgroundColor: this.props.colour,
-      top: this.props.y - 10 + "px",
-      left: this.props.x - 10 + "px",
+      top: this.props.y - CIRCLE_RADIUS / 2 + "px",
+      left: this.props.x - CIRCLE_RADIUS / 2 + "px",
       borderRadius: "50%",
       width:"20px",
       height:"20px",
@@ -60,12 +41,19 @@ class Circle extends React.Component {
 
 class Rectangle extends React.Component {
   render() {
+    var shift_x = -RECT_WIDTH / 2;
+    var shift_y = -RECT_HEIGHT / 2;
+
+    var corner_tf = "translate(" + shift_x + "px," + shift_y +"px)";
+    var rot = "rotate(" + this.props.theta + "deg)";
+    var global_tf = "translate(" + this.props.x + "px," + this.props.y +"px)";
+
+    var tf = global_tf + " " + corner_tf + " " + rot;
+
     var circleStyle = {
       position: "absolute",
       backgroundColor: this.props.colour,
-      top: this.props.y - 13.3 + "px",
-      left: this.props.x - 3.8 + "px",
-      transform: "rotate(" + this.props.theta + "deg)",
+      transform: tf,
       width:"26.6px",
       height:"7.6px",
       opacity:ALPHA,
@@ -161,16 +149,16 @@ class Board extends React.Component {
   }
 
   handleMessage(msg) {
-    SERVER_MSG = JSON.parse(msg.data);
-    this.setState({circles: SERVER_MSG.circles,
-                   l1: SERVER_MSG.l1,
-                   l2: SERVER_MSG.l2,
-                   l3: SERVER_MSG.l3,
-                   l4: SERVER_MSG.l4,
-                   l5: SERVER_MSG.l5,
-                   l6: SERVER_MSG.l6,
-                   l7: SERVER_MSG.l7,
-                   l8: SERVER_MSG.l8});
+    var server_msg = JSON.parse(msg.data);
+    this.setState({circles: server_msg.circles,
+                   l1: server_msg.l1,
+                   l2: server_msg.l2,
+                   l3: server_msg.l3,
+                   l4: server_msg.l4,
+                   l5: server_msg.l5,
+                   l6: server_msg.l6,
+                   l7: server_msg.l7,
+                   l8: server_msg.l8});
   }
 
   render() {

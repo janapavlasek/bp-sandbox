@@ -4,6 +4,8 @@
 #include <simple-websocket-server/client_ws.hpp>
 #include <simple-websocket-server/server_ws.hpp>
 
+#include "inference/particle_filter.h"
+
 #include "server_utils.h"
 
 using WsServer = SimpleWeb::SocketServer<SimpleWeb::WS>;
@@ -32,7 +34,10 @@ void handleServerMessage(const std::shared_ptr<WsServer::Connection>& connection
             // connection->send is an asynchronous function
             int num_particles = 10;
             if (in_msg.hasKey("num_particles")) num_particles = std::stoi(in_msg.getVal("num_particles"));
-            auto msg = randomMessage(num_particles);
+            // auto msg = randomMessage(num_particles);
+            BPSandbox::ParticleFilter pf;
+            ParticleMessage msg;
+            msg.setParticles(pf.init(num_particles));
 
             sendParticleMessage(connection, msg);
         }
