@@ -1,6 +1,18 @@
+// Import Material UI components.
+const {
+  Typography,
+  Slider,
+} = MaterialUI;
+
 var ws;
-var NUM_PARTICLES = 1;
-var NEW_MSG = false;
+var interval = null;
+var iter_count  = 0;
+var inference_done = false;
+
+var DEFAULT_NUM_PARTICLES = 50;
+var DEFAULT_NUM_ITERS = 20;
+var NUM_PARTICLES = DEFAULT_NUM_PARTICLES;
+var NUM_ITERS = DEFAULT_NUM_ITERS;
 var ALPHA = 0.7;
 
 // Shape info
@@ -10,6 +22,40 @@ var RECT_HEIGHT = 7.6;
 
 function handleInit(props) {
   ws.send(JSON.stringify({action: 'init', num_particles: NUM_PARTICLES}));
+
+  iter_count = 0;
+  inference_done = false;
+}
+
+function requestUpdate()
+{
+  ws.send(JSON.stringify({action: 'update', num_iters: NUM_ITERS}));
+  iter_count++;
+
+  if (iter_count >= NUM_ITERS)
+  {
+    clearInterval(interval);
+    inference_done = true;
+  }
+}
+
+function handleStart(props) {
+  // Don't start the interval if this button was already pressed.
+  if (inference_done) return;
+
+  interval = setInterval(() => {
+    requestUpdate();
+  }, 1000);
+}
+
+function handleSlider(label, value)
+{
+  if (label === "iterations") {
+    NUM_ITERS = value;
+  }
+  if (label === "particles") {
+    NUM_PARTICLES = value;
+  }
 }
 
 function InitButton() {
@@ -17,6 +63,39 @@ function InitButton() {
     <button className="button" onClick={() => handleInit(null)} >
       {"Initialize"}
     </button>
+  );
+}
+
+function StartButton() {
+  return (
+    <button className="button" onClick={() => handleStart(null)} >
+      {"Start"}
+    </button>
+  );
+}
+
+function valuetext(value) {
+  return '${value}';
+}
+
+function DiscreteSlider(props) {
+  return (
+    <div className="slider">
+      <div id="discrete-slider">
+        {props.label}
+      </div>
+      <Slider
+        defaultValue={props.default}
+        getAriaValueText={valuetext}
+        aria-labelledby="discrete-slider"
+        valueLabelDisplay="auto"
+        step={props.step}
+        marks
+        min={props.min}
+        max={props.max}
+        onChangeCommitted={(evt, value) => handleSlider(props.label, value)}
+      />
+    </div>
   );
 }
 
@@ -45,7 +124,7 @@ class Rectangle extends React.Component {
     var shift_y = -RECT_HEIGHT / 2;
 
     var corner_tf = "translate(" + shift_x + "px," + shift_y +"px)";
-    var rot = "rotate(" + this.props.theta + "deg)";
+    var rot = "rotate(" + this.props.theta + "rad)";
     var global_tf = "translate(" + this.props.x + "px," + this.props.y +"px)";
 
     var tf = global_tf + " " + corner_tf + " " + rot;
@@ -164,6 +243,9 @@ class Board extends React.Component {
   render() {
     return (
       <div>
+        <div>
+          Iteration: {iter_count}
+        </div>
         <div className="canvas">
           <img id="obs" src="../../media/obs.png" alt="" />
           <DrawCanvas circles={this.state.circles}
@@ -177,7 +259,13 @@ class Board extends React.Component {
                       l8={this.state.l8}
                       colours={this.state.colours} />
         </div>
-        <InitButton />
+        <div className="controls">
+          <InitButton />
+          <StartButton />
+          <br/>
+          <DiscreteSlider label="particles" min={10} max={500} default={DEFAULT_NUM_PARTICLES} step={10}/>
+          <DiscreteSlider label="iterations" min={5} max={200} default={DEFAULT_NUM_ITERS} step={5}/>
+        </div>
       </div>
     );
   }

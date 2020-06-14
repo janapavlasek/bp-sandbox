@@ -11,67 +11,81 @@
 using WsServer = SimpleWeb::SocketServer<SimpleWeb::WS>;
 using WsClient = SimpleWeb::SocketClient<SimpleWeb::WS>;
 
-
-void sendParticleMessage(const std::shared_ptr<WsServer::Connection>& connection, const ParticleMessage& msg)
+class ServerHelper
 {
-    connection->send(msg.toJSONString(), [](const SimpleWeb::error_code &ec) {
-    if(ec) {
-        std::cout << "Server: Error sending message. " <<
-            // See http://www.boost.org/doc/libs/1_55_0/doc/html/boost_asio/reference.html, Error Codes for error code meanings
-            "Error: " << ec << ", error message: " << ec.message() << std::endl;
-        }
-    });
-}
-
-
-void handleServerMessage(const std::shared_ptr<WsServer::Connection>& connection, const InMessageHelper& in_msg)
-{
-    if (in_msg.hasKey("action"))
+public:
+    ServerHelper()
     {
-        if (in_msg.getVal("action") == "init")
-        {
-            std::cout << "Server: Sending initialize message to " << connection.get() << std::endl;
-            // connection->send is an asynchronous function
-            int num_particles = 10;
-            if (in_msg.hasKey("num_particles")) num_particles = std::stoi(in_msg.getVal("num_particles"));
-            // auto msg = randomMessage(num_particles);
-            BPSandbox::ParticleFilter pf;
-            ParticleMessage msg;
-            msg.setParticles(pf.init(num_particles));
+    }
 
-            sendParticleMessage(connection, msg);
-        }
-        else if (in_msg.getVal("action") == "start")
+    BPSandbox::ParticleFilter pf;
+
+    void sendParticleMessage(std::shared_ptr<WsServer::Connection>& connection, const ParticleMessage& msg)
+    {
+        connection->send(msg.toJSONString(), [](const SimpleWeb::error_code &ec) {
+        if(ec) {
+            std::cout << "Server: Error sending message. " <<
+                // See http://www.boost.org/doc/libs/1_55_0/doc/html/boost_asio/reference.html, Error Codes for error code meanings
+                "Error: " << ec << ", error message: " << ec.message() << std::endl;
+            }
+        });
+    }
+
+    void handleServerMessage(std::shared_ptr<WsServer::Connection>& connection, InMessageHelper& in_msg)
+    {
+        if (in_msg.hasKey("action"))
         {
-            std::cout << "Starting..." << std::endl;
+            if (in_msg.getVal("action") == "init")
+            {
+                std::cout << "Server: Sending initialize message to " << connection.get() << std::endl;
+                // connection->send is an asynchronous function
+                int num_particles = 10;
+                if (in_msg.hasKey("num_particles")) num_particles = std::stoi(in_msg.getVal("num_particles"));
+                // auto msg = randomMessage(num_particles);
+                ParticleMessage msg;
+                msg.setParticles(pf.init(num_particles));
+
+                sendParticleMessage(connection, msg);
+            }
+            else if (in_msg.getVal("action") == "update")
+            {
+                std::cout << "Running one update" << std::endl;
+
+                ParticleMessage msg;
+                msg.setParticles(pf.update());
+                sendParticleMessage(connection, msg);
+
+                std::cout << "Done" << std::endl;
+            }
+            else
+            {
+                std::cout << "Action " << in_msg.getVal("action") << "is unknown." << std::endl;
+            }
         }
         else
         {
-            std::cout << "Action " << in_msg.getVal("action") << "is unknown." << std::endl;
+            std::cout << "Nothing to do." << std::endl;
         }
     }
-    else
-    {
-        std::cout << "Nothing to do." << std::endl;
-    }
-}
+};
 
 
 int main() {
   // WebSocket (WS)-server at port 8080 using 1 thread
   WsServer server;
   server.config.port = 8080;
+  std::shared_ptr<ServerHelper> helper = std::make_shared<ServerHelper>();
 
   // Init web socket.
   auto &bp_socket = server.endpoint["^/bp/?$"];
 
-  bp_socket.on_message = [](std::shared_ptr<WsServer::Connection> connection, std::shared_ptr<WsServer::InMessage> in_message) {
+  bp_socket.on_message = [&, helper](std::shared_ptr<WsServer::Connection> connection, std::shared_ptr<WsServer::InMessage> in_message) {
     auto string_msg = in_message->string();
 
     std::cout << "Server: Message received: \"" << string_msg << "\" from " << connection.get() << std::endl;
     InMessageHelper in_msg(string_msg);
 
-    handleServerMessage(connection, in_msg);
+    helper->handleServerMessage(connection, in_msg);
   };
 
   // Setup some basic functions.

@@ -4,7 +4,9 @@ namespace BPSandbox
 {
 
 ParticleFilter::ParticleFilter() :
-  num_joints_(8)
+  num_joints_(8),
+  num_particles_(50),
+  update_count_(0)
 {
   link_names_.push_back("circles");
   for (size_t i = 0; i < num_joints_; ++i)
@@ -15,6 +17,10 @@ ParticleFilter::ParticleFilter() :
 
 std::map<std::string, ParticleList> ParticleFilter::init(const int num_particles)
 {
+  num_particles_ = num_particles;
+  particles_.clear();
+  weights_.clear();
+
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::uniform_int_distribution<int> int_dist(0, obs_.width - 1);
@@ -37,7 +43,41 @@ std::map<std::string, ParticleList> ParticleFilter::init(const int num_particles
 
 std::map<std::string, ParticleList> ParticleFilter::update()
 {
+  // Add noise to particles.
+  particles_ = jitterParticles(particles_, 3, 0.1);
+  weights_ = reweight(particles_, obs_);
+  particles_ = resample(particles_, weights_);
+
+  update_count_++;
+
   return particlesToMap();
+}
+
+std::vector<double> ParticleFilter::reweight(const std::vector<SpiderParticle>& particles, const Observation& obs)
+{
+  std::vector<double> weights;
+  for (auto& p: particles)
+  {
+    double w = p.averageUnaryLikelihood(obs);
+    weights.push_back(w);
+  }
+
+  return weights;
+}
+
+std::vector<SpiderParticle> ParticleFilter::resample(const std::vector<SpiderParticle>& particles, const std::vector<double>& weights)
+{
+  std::vector<double> normalized_weights = normalizeVector(weights, false);
+  std::vector<size_t> keep = importanceSample(num_particles_, normalized_weights);
+
+  std::vector<SpiderParticle> new_particles;
+
+  for (auto& idx : keep)
+  {
+    new_particles.push_back(particles[idx]);
+  }
+
+  return new_particles;
 }
 
 std::map<std::string, ParticleList> ParticleFilter::particlesToMap()
