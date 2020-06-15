@@ -24,6 +24,7 @@ std::map<std::string, ParticleList> ParticleFilter::init(const int num_particles
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::uniform_real_distribution<float> pix_dist(0, obs_.width - 1);
+  // std::normal_distribution<float> pix_dist{0, 10};
   std::uniform_real_distribution<float> dist(0, 2 * PI);
 
   for (size_t i = 0; i < num_particles; ++i)
@@ -34,17 +35,23 @@ std::map<std::string, ParticleList> ParticleFilter::init(const int num_particles
       joints.push_back(dist(gen));
     }
 
-    SpiderParticle sp(pix_dist(gen), pix_dist(gen), joints);
+    // SpiderParticle sp(200 + pix_dist(gen), 136 + pix_dist(gen), joints);
+    SpiderParticle sp(pix_dist(gen),pix_dist(gen), joints);
     particles_.push_back(sp);
   }
+
+  weights_ = reweight(particles_, obs_);
 
   return particlesToMap(particles_);
 }
 
 std::map<std::string, ParticleList> ParticleFilter::update()
 {
-  // Add noise to particles.
-  particles_ = jitterParticles(particles_, 5, 0.15);
+  // Add noise to particles, but keep the best one.
+  auto best = particleEstimate();
+  particles_ = jitterParticles(particles_, 3, 0.1);
+  particles_.push_back(best);
+
   weights_ = reweight(particles_, obs_);
   particles_ = resample(particles_, weights_);
 
@@ -58,29 +65,40 @@ std::vector<double> ParticleFilter::reweight(const std::vector<SpiderParticle>& 
   std::vector<double> weights;
   for (auto& p: particles)
   {
-    double w = p.averageUnaryLikelihood(obs);
+    double w = p.jointUnaryLikelihood(obs);
     weights.push_back(w);
   }
 
   return weights;
 }
 
-std::vector<SpiderParticle> ParticleFilter::resample(const std::vector<SpiderParticle>& particles, const std::vector<double>& weights)
+std::vector<SpiderParticle> ParticleFilter::resample(const std::vector<SpiderParticle>& particles, std::vector<double>& weights)
 {
   std::vector<double> normalized_weights = normalizeVector(weights, false);
   std::vector<size_t> keep = importanceSample(num_particles_, normalized_weights);
 
   std::vector<SpiderParticle> new_particles;
+  std::vector<double> new_weights;
 
   for (auto& idx : keep)
   {
     new_particles.push_back(particles[idx]);
+    new_weights.push_back(weights[idx]);
   }
+
+  weights = new_weights;
 
   return new_particles;
 }
 
 std::map<std::string, ParticleList> ParticleFilter::estimate()
+{
+  std::vector<SpiderParticle> est({particleEstimate()});
+
+  return particlesToMap(est);
+}
+
+SpiderParticle ParticleFilter::particleEstimate()
 {
   if (particles_.size() != weights_.size())
   {
@@ -95,9 +113,7 @@ std::map<std::string, ParticleList> ParticleFilter::estimate()
     }
   }
 
-  std::vector<SpiderParticle> est({particles_[best]});
-
-  return particlesToMap(est);
+  return particles_[best];
 }
 
 std::map<std::string, ParticleList> ParticleFilter::particlesToMap(const std::vector<SpiderParticle>& particles)

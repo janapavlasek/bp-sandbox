@@ -23,9 +23,10 @@ public:
 
 private:
 
+  SpiderParticle particleEstimate();
   std::map<std::string, ParticleList> particlesToMap(const std::vector<SpiderParticle>& particles);
   std::vector<double> reweight(const std::vector<SpiderParticle>& particles, const Observation& obs);
-  std::vector<SpiderParticle> resample(const std::vector<SpiderParticle>& particles, const std::vector<double>& weights);
+  std::vector<SpiderParticle> resample(const std::vector<SpiderParticle>& particles, std::vector<double>& weights);
 
   size_t num_particles_;
   size_t update_count_;

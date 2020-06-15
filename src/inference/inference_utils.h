@@ -41,7 +41,7 @@ public:
     {
       return 1;
     }
-    return data_[i * width + j];
+    return data_[j * width + i];
   }
 
   size_t width, height;
@@ -195,11 +195,15 @@ private:
                  const std::vector<float>& C,
                  const std::vector<float>& D) const
   {
+    // Algorithm to check intersection of two line segments.
+    //   (https://bryceboe.com/2006/10/23/line-segment-intersection-algorithm/)
     return ccw(A,C,D) != ccw(B,C,D) && ccw(A,B,C) != ccw(A,B,D);
   }
 
   bool pointInside(const float pt_x, const float pt_y) const
   {
+    // Algorithm to check if a point is inside a polygon.
+    //   (https://en.wikipedia.org/wiki/Point_in_polygon)
     int num_intersect = 0;
 
     std::vector<float> origin({0, 0});
@@ -319,7 +323,7 @@ public:
     return state;
   }
 
-  double averageUnaryLikelihood(const Observation obs) const
+  double jointUnaryLikelihood(const Observation obs) const
   {
     double w = 0;
     int num_pts = 0;
@@ -334,7 +338,7 @@ public:
       total_pts += num_pts;
     }
 
-    return w / num_pts;
+    return w / total_pts;
   }
 };
 
