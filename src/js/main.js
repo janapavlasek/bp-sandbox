@@ -14,7 +14,8 @@ var DEFAULT_NUM_PARTICLES = 50;
 var DEFAULT_NUM_ITERS = 20;
 var NUM_PARTICLES = DEFAULT_NUM_PARTICLES;
 var NUM_ITERS = DEFAULT_NUM_ITERS;
-var PERIOD = 500;
+var PERIOD = 100;
+var NEW_MSG = false;
 
 // Shape info
 var CIRCLE_RADIUS = 20;
@@ -33,8 +34,12 @@ function handleInit(props) {
 
 function requestUpdate()
 {
-  ws.send(JSON.stringify({action: 'update', num_iters: NUM_ITERS}));
+  // If we haven't gotten a new message yet, wait.
+  if (!NEW_MSG && iter_count < NUM_ITERS) return;
+
   iter_count++;
+  NEW_MSG = false;
+  ws.send(JSON.stringify({action: 'update', num_iters: NUM_ITERS}));
 
   if (iter_count >= NUM_ITERS)
   {
@@ -186,10 +191,10 @@ class DrawCanvas extends React.Component {
       if (linkInfo[i]) {
         rects.push(
           <Rectangle key={i + colour}
-                  x={linkInfo[i][0]}
-                  y={linkInfo[i][1]}
-                  theta={linkInfo[i][2]}
-                  colour={colour}/>
+                     x={linkInfo[i][0]}
+                     y={linkInfo[i][1]}
+                     theta={linkInfo[i][2]}
+                     colour={colour}/>
           );
       }
     }
@@ -257,6 +262,7 @@ class Board extends React.Component {
                    l6: server_msg.l6,
                    l7: server_msg.l7,
                    l8: server_msg.l8});
+    NEW_MSG = true;
   }
 
   render() {
