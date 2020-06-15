@@ -149,14 +149,14 @@ ParticleMessage randomMessage(const int num_particles)
 {
     std::random_device rd{};
     std::mt19937 gen{rd()};
-    std::uniform_int_distribution<int> int_dist(0, 340);
+    std::uniform_real_distribution<float> pix_dist(0, 340);
     std::uniform_real_distribution<float> dist(-180, 180);
 
     ParticleMessage msg;
     msg.particles.insert({"circles", ParticleList()});
     for (size_t i = 0; i < num_particles; ++i)
     {
-        std::vector<float> p{int_dist(gen), int_dist(gen)};
+        std::vector<float> p{pix_dist(gen), pix_dist(gen)};
         msg.particles["circles"].push_back(p);
     }
 
@@ -166,7 +166,7 @@ ParticleMessage randomMessage(const int num_particles)
         msg.particles.insert({name, ParticleList()});
         for (size_t i = 0; i < num_particles; ++i)
         {
-            std::vector<float> p{int_dist(gen), int_dist(gen), dist(gen)};
+            std::vector<float> p{pix_dist(gen), pix_dist(gen), dist(gen)};
             msg.particles[name].push_back(p);
         }
     }

@@ -19,10 +19,11 @@ public:
 
   std::map<std::string, ParticleList> init(const int num_particles);
   std::map<std::string, ParticleList> update();
+  std::map<std::string, ParticleList> estimate();
 
 private:
 
-  std::map<std::string, ParticleList> particlesToMap();
+  std::map<std::string, ParticleList> particlesToMap(const std::vector<SpiderParticle>& particles);
   std::vector<double> reweight(const std::vector<SpiderParticle>& particles, const Observation& obs);
   std::vector<SpiderParticle> resample(const std::vector<SpiderParticle>& particles, const std::vector<double>& weights);
 

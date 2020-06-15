@@ -39,7 +39,7 @@ public:
     // col, row
     if (i < 0 || i >= width || j < 0 || j >= height)
     {
-      return 0;
+      return 1;
     }
     return data_[i * width + j];
   }
@@ -96,36 +96,36 @@ class Circle
 {
 public:
   Circle() :
-    radius(20),
+    radius(10),
     x(0),
     y(0)
   {
   }
 
   Circle(const float x, const float y) :
-    radius(20),
+    radius(10),
     x(x),
     y(y)
   {
   }
 
-  double calcAverageVal(const Observation& obs) const
+  double calcAverageVal(const Observation& obs, int& num_pts) const
   {
     double sum = 0;
-    int count = 0;
+    num_pts = 0;
     for (int i = static_cast<int>(x - radius) - 1; i < static_cast<int>(x + radius) + 2; ++i)
     {
       for (int j = static_cast<int>(y - radius) - 1; j < static_cast<int>(y + radius) + 2; ++j)
       {
         if (pow(i - x, 2) + pow(j - y, 2) <= radius * radius)
         {
-          count++;
-          sum += obs.getPixel(i, j);
+          num_pts++;
+          sum += (1 - obs.getPixel(i, j));
         }
       }
     }
-    if (count == 0) return 0;
-    return sum / count;
+
+    return sum;
   }
 
   float radius;
@@ -153,46 +153,71 @@ public:
   {
   }
 
-  double calcAverageVal(const Observation& obs) const
+  double calcAverageVal(const Observation& obs, int& num_pts) const
   {
     double sum = 0;
-    int count = 0;
-
-    // Line parameters.
-    float a = tan(theta);
-    float a_perp = tan(normalize_angle(theta + PI / 2));
-    float b = y - a * x;
-    float b_perp = y - a_perp * x;
-
-    // Line offsets.
-    float x0_h = (height / 2) / cos(theta);
-    float x0_w = (width / 2) / cos(theta);
+    num_pts = 0;
 
     for (int i = static_cast<int>(x - width) - 1; i < static_cast<int>(x + width) + 2; ++i)
     {
       for (int j = static_cast<int>(y - width) - 1; j < static_cast<int>(y + width) + 2; ++j)
       {
-        if (j >= a * (i + x0_h) + b && j <= a * (i - x0_h) + b &&
-            j >= a_perp * (i - x0_w) + b_perp && j <= a_perp * (i + x0_w) + b_perp)
+        if (pointInside(i, j))
         {
-          count++;
-          sum += obs.getPixel(i, j);
+          num_pts++;
+          sum += (1 - obs.getPixel(i, j));
         }
       }
     }
 
-    if (count == 0) return 0;
-    return sum / count;
+    return sum;
+  }
+
+  void setPoints(const std::vector<std::vector<float> >& pts)
+  {
+    corner_pts = pts;
   }
 
   float width, height;
   float x, y, theta;
+  std::vector<std::vector<float> > corner_pts;
+
+private:
+  bool ccw(const std::vector<float>& A,
+           const std::vector<float>& B,
+           const std::vector<float>& C) const
+  {
+    return (C[1]-A[1])*(B[0]-A[0]) > (B[1]-A[1])*(C[0]-A[0]);
+  }
+
+  bool intersect(const std::vector<float>& A,
+                 const std::vector<float>& B,
+                 const std::vector<float>& C,
+                 const std::vector<float>& D) const
+  {
+    return ccw(A,C,D) != ccw(B,C,D) && ccw(A,B,C) != ccw(A,B,D);
+  }
+
+  bool pointInside(const float pt_x, const float pt_y) const
+  {
+    int num_intersect = 0;
+
+    std::vector<float> origin({0, 0});
+    std::vector<float> pt({pt_x, pt_y});
+
+    for (size_t i = 0; i < 4; ++i)
+    {
+      if (intersect(origin, pt, corner_pts[i], corner_pts[(i + 1) % 4])) num_intersect++;
+    }
+
+    return num_intersect % 2 != 0;
+  }
 };
 
 class SpiderParticle
 {
 public:
-  SpiderParticle(int x, int y, std::vector<float> joints) :
+  SpiderParticle(float x, float y, std::vector<float> joints) :
     x(x),
     y(y),
     joints(joints),
@@ -214,45 +239,69 @@ public:
   std::vector<Rectangle> links;
 
   // Graph state.
-  int x, y;
+  float x, y;
   std::vector<float> joints;
 
   void updateLinks()
   {
     links.clear();
 
-    // This is the first layer of joints, connected to the root.
-    for (size_t i = 0; i < num_joints / 2; ++i)
+    for (size_t i = 0; i < num_joints; ++i)
     {
-      float center_x = x + (link_length / 2 + link_spacing) * cos(joints[i]);
-      float center_y = y + (link_length / 2 + link_spacing) * sin(joints[i]);
-      float theta = joints[i];
-
-      Rectangle r(center_x, center_y, theta);
-      links.push_back(r);
-    }
-
-    // This is the second layer of joints, each connected to one in the first layer.
-    for (size_t i = num_joints / 2; i < num_joints; ++i)
-    {
-      float parent_joint = joints[i - num_joints / 2];
-      Eigen::Translation<float, 2> t1(link_length + link_spacing, 0);
-      Eigen::Rotation2D<float> rot1(parent_joint);
-      Eigen::Translation<float, 2> t2(link_length / 2 + link_spacing, 0);
-      Eigen::Rotation2D<float> rot2(joints[i]);
+      Eigen::Transform<float,2,Eigen::Affine> rect_tf;
       Eigen::Translation<float, 2> tw(x, y);
+      Eigen::Translation<float, 2> rect_center_tf;
+      float theta;
+
+      if (i < num_joints / 2)
+      {
+        // This is the first layer of joints, connected to the root.
+        theta = joints[i];
+        Eigen::Translation<float, 2> t1(link_length / 2 + link_spacing, 0);
+        Eigen::Rotation2D<float> rot1(theta);
+        rect_center_tf = Eigen::Translation<float, 2>(link_length / 2 + link_spacing, 0);
+        rect_tf = tw * rot1;
+      }
+      else
+      {
+        // This is the second layer of joints, connected to the first layer.
+        float parent_joint = joints[i - num_joints / 2];
+        theta = normalize_angle(joints[i] + parent_joint);
+        Eigen::Translation<float, 2> t1(link_length + link_spacing, 0);
+        Eigen::Rotation2D<float> rot1(parent_joint);
+        Eigen::Rotation2D<float> rot2(joints[i]);
+        rect_center_tf = Eigen::Translation<float, 2>(link_length / 2 + link_spacing, 0);
+        rect_tf = tw * rot1 * t1 * rot2;
+      }
 
       Eigen::Vector2f pt(0, 0);
-      auto new_pt = tw * rot1 * t1 * rot2 * t2 * pt;
-
-      float theta = normalize_angle(joints[i] + parent_joint);
+      auto new_pt = rect_tf * rect_center_tf * pt;
 
       Rectangle r(new_pt[0], new_pt[1], theta);
+
+      // Get four corners.
+      Eigen::Translation<float, 2> top_left_tf(link_spacing, r.height / 2);
+      Eigen::Translation<float, 2> bottom_left_tf(link_spacing, -r.height / 2);
+      Eigen::Translation<float, 2> top_right_tf(link_spacing + link_length, r.height / 2);
+      Eigen::Translation<float, 2> bottom_right_tf(link_spacing + link_length, -r.height / 2);
+
+      auto top_left = rect_tf * top_left_tf * pt;
+      auto bottom_left = rect_tf * bottom_left_tf * pt;
+      auto top_right = rect_tf * top_right_tf * pt;
+      auto bottom_right = rect_tf * bottom_right_tf * pt;
+
+      std::vector<std::vector<float> > rect_pts({{top_left[0], top_left[1]},
+                                                 {top_right[0], top_right[1]},
+                                                 {bottom_right[0], bottom_right[1]},
+                                                 {bottom_left[0], bottom_left[1]}});
+
+      r.setPoints(rect_pts);
+
       links.push_back(r);
     }
   }
 
-  ParticleState toPartStates()
+  ParticleState toPartStates() const
   {
     ParticleState state;
     std::vector<float> root_pos({x, y});
@@ -273,15 +322,19 @@ public:
   double averageUnaryLikelihood(const Observation obs) const
   {
     double w = 0;
+    int num_pts = 0;
+    int total_pts = 0;
     // Circle first.
-    w += root.calcAverageVal(obs);
+    w += root.calcAverageVal(obs, num_pts);
+    total_pts += num_pts;
 
     for (size_t i = 0; i < links.size(); i++)
     {
-      w += links[i].calcAverageVal(obs);
+      w += links[i].calcAverageVal(obs, num_pts);
+      total_pts += num_pts;
     }
 
-    return w / 9;
+    return w / num_pts;
   }
 };
 

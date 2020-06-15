@@ -9,16 +9,20 @@ var interval = null;
 var iter_count  = 0;
 var inference_done = false;
 
+// Particle filter info.
 var DEFAULT_NUM_PARTICLES = 50;
 var DEFAULT_NUM_ITERS = 20;
 var NUM_PARTICLES = DEFAULT_NUM_PARTICLES;
 var NUM_ITERS = DEFAULT_NUM_ITERS;
-var ALPHA = 0.7;
+var PERIOD = 500;
 
 // Shape info
 var CIRCLE_RADIUS = 20;
 var RECT_WIDTH = 26.6;
 var RECT_HEIGHT = 7.6;
+var ALPHA = 0.7;
+
+// Display info.
 
 function handleInit(props) {
   ws.send(JSON.stringify({action: 'init', num_particles: NUM_PARTICLES}));
@@ -45,7 +49,14 @@ function handleStart(props) {
 
   interval = setInterval(() => {
     requestUpdate();
-  }, 1000);
+  }, PERIOD);
+}
+
+function handleEstimate(props) {
+  // Don't start the interval if this button was already pressed.
+  if (!inference_done) return;
+
+  ws.send(JSON.stringify({action: 'estimate'}));
 }
 
 function handleSlider(label, value)
@@ -70,6 +81,14 @@ function StartButton() {
   return (
     <button className="button" onClick={() => handleStart(null)} >
       {"Start"}
+    </button>
+  );
+}
+
+function EstimateButton() {
+  return (
+    <button className="button" onClick={() => handleEstimate(null)} >
+      {"Estimate"}
     </button>
   );
 }
@@ -262,6 +281,7 @@ class Board extends React.Component {
         <div className="controls">
           <InitButton />
           <StartButton />
+          <EstimateButton />
           <br/>
           <DiscreteSlider label="particles" min={10} max={500} default={DEFAULT_NUM_PARTICLES} step={10}/>
           <DiscreteSlider label="iterations" min={5} max={200} default={DEFAULT_NUM_ITERS} step={5}/>

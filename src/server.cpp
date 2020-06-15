@@ -57,6 +57,16 @@ public:
 
                 std::cout << "Done" << std::endl;
             }
+            else if (in_msg.getVal("action") == "estimate")
+            {
+                std::cout << "Running one update" << std::endl;
+
+                ParticleMessage msg;
+                msg.setParticles(pf.estimate());
+                sendParticleMessage(connection, msg);
+
+                std::cout << "Done" << std::endl;
+            }
             else
             {
                 std::cout << "Action " << in_msg.getVal("action") << "is unknown." << std::endl;

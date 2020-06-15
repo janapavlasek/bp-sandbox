@@ -23,7 +23,7 @@ std::map<std::string, ParticleList> ParticleFilter::init(const int num_particles
 
   std::random_device rd{};
   std::mt19937 gen{rd()};
-  std::uniform_int_distribution<int> int_dist(0, obs_.width - 1);
+  std::uniform_real_distribution<float> pix_dist(0, obs_.width - 1);
   std::uniform_real_distribution<float> dist(0, 2 * PI);
 
   for (size_t i = 0; i < num_particles; ++i)
@@ -34,23 +34,23 @@ std::map<std::string, ParticleList> ParticleFilter::init(const int num_particles
       joints.push_back(dist(gen));
     }
 
-    SpiderParticle sp(int_dist(gen), int_dist(gen), joints);
+    SpiderParticle sp(pix_dist(gen), pix_dist(gen), joints);
     particles_.push_back(sp);
   }
 
-  return particlesToMap();
+  return particlesToMap(particles_);
 }
 
 std::map<std::string, ParticleList> ParticleFilter::update()
 {
   // Add noise to particles.
-  particles_ = jitterParticles(particles_, 3, 0.1);
+  particles_ = jitterParticles(particles_, 5, 0.15);
   weights_ = reweight(particles_, obs_);
   particles_ = resample(particles_, weights_);
 
   update_count_++;
 
-  return particlesToMap();
+  return particlesToMap(particles_);
 }
 
 std::vector<double> ParticleFilter::reweight(const std::vector<SpiderParticle>& particles, const Observation& obs)
@@ -80,7 +80,27 @@ std::vector<SpiderParticle> ParticleFilter::resample(const std::vector<SpiderPar
   return new_particles;
 }
 
-std::map<std::string, ParticleList> ParticleFilter::particlesToMap()
+std::map<std::string, ParticleList> ParticleFilter::estimate()
+{
+  if (particles_.size() != weights_.size())
+  {
+    std::cerr << "PANIC! Can't get estimate. " << particles_.size() << " != " << weights_.size() << std::endl;
+  }
+  size_t best = 0;
+  for (size_t i = 1; i < weights_.size(); ++i)
+  {
+    if (weights_[i] > weights_[best])
+    {
+      best = i;
+    }
+  }
+
+  std::vector<SpiderParticle> est({particles_[best]});
+
+  return particlesToMap(est);
+}
+
+std::map<std::string, ParticleList> ParticleFilter::particlesToMap(const std::vector<SpiderParticle>& particles)
 {
   std::map<std::string, ParticleList> particle_map;
 
@@ -89,7 +109,7 @@ std::map<std::string, ParticleList> ParticleFilter::particlesToMap()
     particle_map.insert({n, ParticleList()});
   }
 
-  for (auto& p : particles_)
+  for (auto& p : particles)
   {
     for (auto& data : p.toPartStates())
     {
