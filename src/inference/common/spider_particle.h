@@ -1,141 +1,24 @@
-#ifndef BP_SANDBOX_INFERENCE_INFERENCE_UTILS_H
-#define BP_SANDBOX_INFERENCE_INFERENCE_UTILS_H
-
-#define PI 3.14159265
-#define RAD_TO_DEG 180 / PI
+#ifndef BP_SANDBOX_INFERENCE_COMMON_SPIDER_PARTICLE_H
+#define BP_SANDBOX_INFERENCE_COMMON_SPIDER_PARTICLE_H
 
 #include <cmath>
-#include <sstream>
-#include <fstream>
 #include <iostream>
+#include <algorithm>
 #include <map>
 #include <random>
 
+#include <Eigen/Geometry>
+
+#include "common_utils.h"
+#include "observation.h"
+
 namespace BPSandbox
 {
-
-static inline float normalize_angle(float angle)
-{
-  const double result = fmod(angle, 2.0*M_PI);
-  if(result < 0) return result + 2.0*M_PI;
-  return result;
-}
 
 typedef std::vector<std::vector<float> > ParticleList;
 typedef std::map<std::string, std::vector<float> > ParticleState;
 typedef std::map<std::string, ParticleList > ParticleStateList;
 
-class Observation
-{
-public:
-  Observation() :
-    file_path_("/home/jana/code/bp-sandbox/media/obs.pbm")
-  {
-    loadImage(file_path_);
-
-    checked_grid_ = new bool[width * height];
-    markUnchecked();
-  }
-
-  ~Observation()
-  {
-    delete checked_grid_;
-    delete data_;
-  }
-
-  /**
-   * Get the pixel value.
-   * @param  i                 The column index.
-   * @param  j                 The row index.
-   * @param  allow_outofbounds If true, out of bounds cells return the lowest value.
-   * @param  double_count      If false, cells which have already been accessed return the lowest value.
-   * @return                   The pixel value (depends on the flags).
-   */
-  float getPixel(const int i, const int j,
-                 const bool allow_outofbounds = true,
-                 const bool double_count = false) const
-  {
-    // col, row
-    if (allow_outofbounds)
-    {
-      // Returns a 1 if out of bounds.
-      if (i < 0 || i >= width || j < 0 || j >= height)
-      {
-        return 1;
-      }
-    }
-
-    // Returns a 1 if this was already checked and we don't want to double count cells.
-    if (checked_grid_[j * width + i] && !double_count)
-    {
-      return 1;
-    }
-
-    // Mark this one as checked.
-    checked_grid_[j * width + i] = true;
-
-    return data_[j * width + i];
-  }
-
-  /**
-   * Reset the checked grid. Note that this is technically const because it only
-   * modifies the checked_grid_ array, which is mutable. This is so that we can
-   * decide when to reset the checked grid whenever we change particles.
-   */
-  void markUnchecked() const
-  {
-    std::fill(checked_grid_, checked_grid_ + width * height, false);
-  }
-
-  size_t width, height;
-
-private:
-
-  void loadImage(const std::string& file_path)
-  {
-    std::ifstream fin(file_path);
-    std::string line;
-
-    if(!fin)
-    {
-      std::cerr << "Error reading observation file " << file_path << std::endl;
-      return;
-    }
-
-    // The first line can be ignored.
-    if (!std::getline(fin, line)) return;
-    // The secong line has width and height.
-    if (std::getline(fin, line))
-    {
-      std::stringstream ss(line);
-      ss >> width >> height;
-    }
-    else return;
-
-    data_ = new float[width * height];
-
-    // Get the pixels.
-    for (int row = 0; row < height; ++row)
-    {
-      if (!std::getline(fin, line)) break;
-      std::stringstream ss(line);
-      for (int col = 0; col < width; ++col)
-      {
-        std::string pix;
-        ss >> pix;
-        data_[row * width + col] = std::stof(pix);
-      }
-    }
-  }
-
-  float* data_;
-  mutable bool* checked_grid_;
-  std::string file_path_;
-};
-
-/*
- * Shape and graph info.
- */
 class Circle
 {
 public:
@@ -152,6 +35,9 @@ public:
     y(y)
   {
   }
+
+  float radius;
+  float x, y;
 
   double calcAverageVal(const Observation& obs, int& num_pts) const
   {
@@ -171,9 +57,6 @@ public:
 
     return sum;
   }
-
-  float radius;
-  float x, y;
 };
 
 class Rectangle
@@ -196,6 +79,10 @@ public:
     theta(theta)
   {
   }
+
+  float width, height;
+  float x, y, theta;
+  std::vector<std::vector<float> > corner_pts;
 
   double calcAverageVal(const Observation& obs, int& num_pts) const
   {
@@ -221,10 +108,6 @@ public:
   {
     corner_pts = pts;
   }
-
-  float width, height;
-  float x, y, theta;
-  std::vector<std::vector<float> > corner_pts;
 
 private:
   bool ccw(const std::vector<float>& A,
@@ -390,116 +273,6 @@ public:
   }
 };
 
-template <class T>
-static std::vector<double> normalizeVector(const std::vector<T>& vals, const bool log_likelihood = true)
-{
-  std::vector<double> normalized_vals;
-  if (vals.size() < 1) return normalized_vals;
+}  // namespace BPSandbox
 
-  // Make sure vals are positive.
-  auto min_w = *std::min_element(vals.begin(), vals.end());
-  assert(log_likelihood || min_w >= 0);
-
-  double sum = 0;
-
-  for (auto& w : vals) {
-    if (log_likelihood)
-    {
-      sum += exp(w - min_w);
-    }
-    else
-    {
-      sum += w;
-    }
-  }
-
-  for (auto& w : vals) {
-    if (sum == 0) {
-      normalized_vals.push_back(1.0 / vals.size());
-    } else {
-      double new_w;
-      if (log_likelihood) new_w = exp(w - min_w) / sum;
-      else                new_w = w / sum;
-      normalized_vals.push_back(new_w);
-    }
-  }
-
-  return normalized_vals;
-}
-
-static std::vector<size_t> importanceSample(const size_t num_particles,
-                                            const std::vector<double>& normalized_weights,
-                                            const bool keep_best = true)
-{
-  std::vector<size_t> sample_ind;
-
-  if (num_particles < 1 || normalized_weights.size() < 1) return sample_ind;
-
-  if (keep_best)
-  {
-    size_t max_idx = 0;
-    for (size_t i = 1; i < normalized_weights.size(); ++i)
-    {
-      if (normalized_weights[i] > normalized_weights[max_idx])
-      {
-        max_idx = i;
-      }
-    }
-    sample_ind.push_back(max_idx);
-  }
-
-  std::random_device rd{};
-  std::mt19937 gen{rd()};
-  std::uniform_real_distribution<float> distribution(0.0, 1.0);
-
-  while (sample_ind.size() < num_particles)
-  {
-    float r = distribution(gen);
-    int idx = 0;
-    float sum = normalized_weights[idx];
-    while (sum < r) {
-      ++idx;
-      sum += normalized_weights[idx];
-    }
-    sample_ind.push_back(idx);
-  }
-
-  return sample_ind;
-}
-
-static SpiderParticle jitterParticle(const SpiderParticle& particle, const float jitter_pix, const float jitter_angle)
-{
-  std::random_device rd{};
-  std::mt19937 gen{rd()};
-  std::normal_distribution<float> dpix{0, jitter_pix};
-  std::normal_distribution<float> dangle{0, jitter_angle};
-
-  std::vector<float> new_joints;
-  for (auto& j : particle.joints)
-  {
-    new_joints.push_back(j + dangle(gen));
-  }
-
-  std::normal_distribution<float> dx{particle.x, jitter_pix};
-  std::normal_distribution<float> dy{particle.y, jitter_pix};
-  SpiderParticle new_particle(particle.x + dpix(gen), particle.y + dpix(gen), new_joints);
-
-  return new_particle;
-}
-
-static std::vector<SpiderParticle> jitterParticles(const std::vector<SpiderParticle>& particles,
-                                                   const float jitter_pix, const float jitter_angle)
-{
-  std::vector<SpiderParticle> new_particles;
-
-  for (auto& p : particles)
-  {
-    new_particles.push_back(jitterParticle(p, jitter_pix, jitter_angle));
-  }
-
-  return new_particles;
-}
-
-};  // namespace BPSandbox
-
-#endif  // BP_SANDBOX_INFERENCE_INFERENCE_UTILS_H
+#endif  // BP_SANDBOX_INFERENCE_COMMON_SPIDER_PARTICLE_H

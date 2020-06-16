@@ -1,3 +1,4 @@
+#include "common/inference_utils.h"
 #include "particle_filter.h"
 
 namespace BPSandbox

@@ -5,9 +5,9 @@
 #include <string>
 #include <vector>
 #include <random>
-#include <Eigen/Geometry>
 
-#include "inference_utils.h"
+#include "common/observation.h"
+#include "common/spider_particle.h"
 
 namespace BPSandbox
 {
