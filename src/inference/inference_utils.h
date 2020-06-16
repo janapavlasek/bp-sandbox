@@ -32,16 +32,59 @@ public:
     file_path_("/home/jana/code/bp-sandbox/media/obs.pbm")
   {
     loadImage(file_path_);
+
+    checked_grid_ = new bool[width * height];
+    markUnchecked();
   }
 
-  float getPixel(const int i, const int j) const
+  ~Observation()
+  {
+    delete checked_grid_;
+    delete data_;
+  }
+
+  /**
+   * Get the pixel value.
+   * @param  i                 The column index.
+   * @param  j                 The row index.
+   * @param  allow_outofbounds If true, out of bounds cells return the lowest value.
+   * @param  double_count      If false, cells which have already been accessed return the lowest value.
+   * @return                   The pixel value (depends on the flags).
+   */
+  float getPixel(const int i, const int j,
+                 const bool allow_outofbounds = true,
+                 const bool double_count = false) const
   {
     // col, row
-    if (i < 0 || i >= width || j < 0 || j >= height)
+    if (allow_outofbounds)
+    {
+      // Returns a 1 if out of bounds.
+      if (i < 0 || i >= width || j < 0 || j >= height)
+      {
+        return 1;
+      }
+    }
+
+    // Returns a 1 if this was already checked and we don't want to double count cells.
+    if (checked_grid_[j * width + i] && !double_count)
     {
       return 1;
     }
+
+    // Mark this one as checked.
+    checked_grid_[j * width + i] = true;
+
     return data_[j * width + i];
+  }
+
+  /**
+   * Reset the checked grid. Note that this is technically const because it only
+   * modifies the checked_grid_ array, which is mutable. This is so that we can
+   * decide when to reset the checked grid whenever we change particles.
+   */
+  void markUnchecked() const
+  {
+    std::fill(checked_grid_, checked_grid_ + width * height, false);
   }
 
   size_t width, height;
@@ -86,6 +129,7 @@ private:
   }
 
   float* data_;
+  mutable bool* checked_grid_;
   std::string file_path_;
 };
 
@@ -221,7 +265,7 @@ private:
 class SpiderParticle
 {
 public:
-  SpiderParticle(float x, float y, std::vector<float> joints) :
+  SpiderParticle(const float x, const float y, const std::vector<float>& joints) :
     x(x),
     y(y),
     joints(joints),
@@ -323,11 +367,15 @@ public:
     return state;
   }
 
-  double jointUnaryLikelihood(const Observation obs) const
+  double jointUnaryLikelihood(const Observation& obs) const
   {
     double w = 0;
     int num_pts = 0;
     int total_pts = 0;
+
+    // This is the unary for the whole particle so we mark the whole grid as unchecked.
+    obs.markUnchecked();
+
     // Circle first.
     w += root.calcAverageVal(obs, num_pts);
     total_pts += num_pts;
@@ -343,7 +391,7 @@ public:
 };
 
 template <class T>
-static std::vector<double> normalizeVector(const std::vector<T> vals, const bool log_likelihood = true)
+static std::vector<double> normalizeVector(const std::vector<T>& vals, const bool log_likelihood = true)
 {
   std::vector<double> normalized_vals;
   if (vals.size() < 1) return normalized_vals;
@@ -380,7 +428,7 @@ static std::vector<double> normalizeVector(const std::vector<T> vals, const bool
 }
 
 static std::vector<size_t> importanceSample(const size_t num_particles,
-                                            const std::vector<double> normalized_weights,
+                                            const std::vector<double>& normalized_weights,
                                             const bool keep_best = true)
 {
   std::vector<size_t> sample_ind;
