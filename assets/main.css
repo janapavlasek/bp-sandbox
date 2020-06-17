@@ -1,10 +1,15 @@
+header {
+  margin-bottom: 2em;
+}
+
 body {
   margin:40px auto;
   max-width:650px;
   line-height:1.6;
   font-size:18px;
   color:#444;
-  padding:0 10px
+  padding:0 10px;
+  font-family: "Roboto", "Helvetica", "Arial", sans-serif;
 }
 
 h1,h2,h3 {
@@ -44,4 +49,8 @@ h1,h2,h3 {
 
 .button-wrapper {
   text-align: center;
+}
+
+.progress {
+  margin: 1em auto;
 }

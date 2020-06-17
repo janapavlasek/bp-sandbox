@@ -2,6 +2,11 @@
 const {
   Typography,
   Slider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  LinearProgress,
 } = MaterialUI;
 
 var ws;
@@ -16,6 +21,13 @@ var NUM_PARTICLES = DEFAULT_NUM_PARTICLES;
 var NUM_ITERS = DEFAULT_NUM_ITERS;
 var PERIOD = 100;
 var NEW_MSG = false;
+
+// Algorithm types.
+var ALGO_TYPES = {
+  PF: {name: "Particle Filter", label: "pf"},
+  BP: {name: "Belief Propagation", label: "bp"},
+}
+var ALGO_SELECTION = ALGO_TYPES.PF;
 
 // Shape info
 var CIRCLE_RADIUS = 20;
@@ -43,15 +55,65 @@ function requestUpdate()
   }
 }
 
+function LinearProgressWithLabel(props) {
+  return (
+    <div className="progress">
+      <div className="progress-bar-text">{`Iteration: ${props.value} / ${NUM_ITERS}`}</div>
+      <LinearProgress className="progress-bar" variant="determinate" value={Math.round(100 * props.value / NUM_ITERS)} />
+    </div>
+  );
+}
+
+/*******************
+ *   ALGO SELECT
+ *******************/
+
+class AlgoForm extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {algo: ALGO_SELECTION};
+  }
+
+  handleAlgoLabelChange(event) {
+    this.setState({algo: event.target.value});
+    ALGO_SELECTION = this.state.algo;
+  }
+
+  render() {
+    return (
+      <FormControl className="algo-form">
+        <InputLabel id="select-algo-label">Algorithm</InputLabel>
+        <Select
+          labelId="select-algo-label"
+          id="select-algo"
+          value={this.state.algo}
+          onChange={(event) => this.handleAlgoLabelChange(event)}
+        >
+          <MenuItem value={ALGO_TYPES.PF}>{ALGO_TYPES.PF.name}</MenuItem>
+          <MenuItem value={ALGO_TYPES.BP}>{ALGO_TYPES.BP.name}</MenuItem>
+        </Select>
+      </FormControl>
+    );
+  }
+}
+
 /*******************
  *     BUTTONS
  *******************/
 
 function handleInit() {
-  ws.send(JSON.stringify({action: 'init', num_particles: NUM_PARTICLES}));
+  ws.send(
+    JSON.stringify({action: 'init',
+                    algo: ALGO_SELECTION.label,
+                    num_particles: NUM_PARTICLES})
+  );
 
   iter_count = 0;
   inference_done = false;
+
+  if (interval !== null) {
+    clearInterval(interval);
+  }
 }
 
 function handleStart() {
@@ -270,9 +332,7 @@ class Board extends React.Component {
   render() {
     return (
       <div>
-        <div>
-          Iteration: {iter_count}
-        </div>
+        <AlgoForm />
         <div className="canvas">
           <img id="obs" src="../../media/obs.png" alt="" />
           <DrawCanvas circles={this.state.circles}
@@ -292,6 +352,7 @@ class Board extends React.Component {
             <Button text="Start" onClick={() => handleStart()} />
             <Button text="Estimate" onClick={() => handleEstimate()} />
           </div>
+          <LinearProgressWithLabel value={iter_count} />
           <DiscreteSlider label="particles" min={10} max={500} default={DEFAULT_NUM_PARTICLES} step={10}/>
           <DiscreteSlider label="iterations" min={5} max={200} default={DEFAULT_NUM_ITERS} step={5}/>
         </div>
@@ -303,9 +364,6 @@ class Board extends React.Component {
 window.onclose=function(){
   ws.close();
 }
-
-// const domContainer = document.querySelector('#like_button_container');
-// ReactDOM.render(e(LikeButton), domContainer);
 
 ReactDOM.render(
   <Board />,
