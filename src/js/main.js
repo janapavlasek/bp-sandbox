@@ -23,14 +23,9 @@ var RECT_WIDTH = 26.6;
 var RECT_HEIGHT = 7.6;
 var ALPHA = 0.7;
 
-// Display info.
-
-function handleInit(props) {
-  ws.send(JSON.stringify({action: 'init', num_particles: NUM_PARTICLES}));
-
-  iter_count = 0;
-  inference_done = false;
-}
+/*******************
+ *  INFERENCE LOOP
+ *******************/
 
 function requestUpdate()
 {
@@ -48,7 +43,18 @@ function requestUpdate()
   }
 }
 
-function handleStart(props) {
+/*******************
+ *     BUTTONS
+ *******************/
+
+function handleInit() {
+  ws.send(JSON.stringify({action: 'init', num_particles: NUM_PARTICLES}));
+
+  iter_count = 0;
+  inference_done = false;
+}
+
+function handleStart() {
   // Don't start the interval if this button was already pressed.
   if (inference_done) return;
 
@@ -57,12 +63,24 @@ function handleStart(props) {
   }, PERIOD);
 }
 
-function handleEstimate(props) {
+function handleEstimate() {
   // Don't start the interval if this button was already pressed.
   if (!inference_done) return;
 
   ws.send(JSON.stringify({action: 'estimate'}));
 }
+
+function Button(props) {
+  return (
+    <button className="button" onClick={() => props.onClick()} >
+      {props.text}
+    </button>
+  );
+}
+
+/*******************
+ *     SLIDERS
+ *******************/
 
 function handleSlider(label, value)
 {
@@ -72,30 +90,6 @@ function handleSlider(label, value)
   if (label === "particles") {
     NUM_PARTICLES = value;
   }
-}
-
-function InitButton() {
-  return (
-    <button className="button" onClick={() => handleInit(null)} >
-      {"Initialize"}
-    </button>
-  );
-}
-
-function StartButton() {
-  return (
-    <button className="button" onClick={() => handleStart(null)} >
-      {"Start"}
-    </button>
-  );
-}
-
-function EstimateButton() {
-  return (
-    <button className="button" onClick={() => handleEstimate(null)} >
-      {"Estimate"}
-    </button>
-  );
 }
 
 function valuetext(value) {
@@ -122,6 +116,10 @@ function DiscreteSlider(props) {
     </div>
   );
 }
+
+/*******************
+ *     CANVAS
+ *******************/
 
 class Circle extends React.Component {
   render() {
@@ -218,6 +216,10 @@ class DrawCanvas extends React.Component {
   }
 }
 
+/*******************
+ *   WHOLE PAGE
+ *******************/
+
 class Board extends React.Component {
   constructor(props) {
     super(props);
@@ -285,10 +287,11 @@ class Board extends React.Component {
                       colours={this.state.colours} />
         </div>
         <div className="controls">
-          <InitButton />
-          <StartButton />
-          <EstimateButton />
-          <br/>
+          <div className="button-wrapper">
+            <Button text="Initialize" onClick={() => handleInit()} />
+            <Button text="Start" onClick={() => handleStart()} />
+            <Button text="Estimate" onClick={() => handleEstimate()} />
+          </div>
           <DiscreteSlider label="particles" min={10} max={500} default={DEFAULT_NUM_PARTICLES} step={10}/>
           <DiscreteSlider label="iterations" min={5} max={200} default={DEFAULT_NUM_ITERS} step={5}/>
         </div>
