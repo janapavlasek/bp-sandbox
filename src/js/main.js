@@ -24,10 +24,13 @@ var NEW_MSG = false;
 
 // Algorithm types.
 var ALGO_TYPES = {
-  PF: {name: "Particle Filter", label: "pf"},
-  BP: {name: "Belief Propagation", label: "bp"},
+  PF: {name: "Particle Filter",
+       label: "pf",
+       render: ( () => renderTheory("algorithms/pf.html") )},
+  BP: {name: "Belief Propagation",
+       label: "bp",
+       render: ( () => renderTheory(null) )},
 }
-var ALGO_SELECTION = ALGO_TYPES.PF;
 
 // Shape info
 var CIRCLE_RADIUS = 20;
@@ -68,32 +71,31 @@ function LinearProgressWithLabel(props) {
  *   ALGO SELECT
  *******************/
 
-class AlgoForm extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {algo: ALGO_SELECTION};
-  }
+function AlgoForm(props) {
+  return (
+    <FormControl className="algo-form">
+      <InputLabel id="select-algo-label">Algorithm</InputLabel>
+      <Select
+        labelId="select-algo-label"
+        id="select-algo"
+        value={props.value}
+        onChange={props.onChange}
+      >
+        <MenuItem value={ALGO_TYPES.PF}>{ALGO_TYPES.PF.name}</MenuItem>
+        <MenuItem value={ALGO_TYPES.BP}>{ALGO_TYPES.BP.name}</MenuItem>
+      </Select>
+    </FormControl>
+  );
+}
 
-  handleAlgoLabelChange(event) {
-    this.setState({algo: event.target.value});
-    ALGO_SELECTION = this.state.algo;
-  }
+function renderTheory(path) {
+  var theory_div = document.getElementById("theory");
 
-  render() {
-    return (
-      <FormControl className="algo-form">
-        <InputLabel id="select-algo-label">Algorithm</InputLabel>
-        <Select
-          labelId="select-algo-label"
-          id="select-algo"
-          value={this.state.algo}
-          onChange={(event) => this.handleAlgoLabelChange(event)}
-        >
-          <MenuItem value={ALGO_TYPES.PF}>{ALGO_TYPES.PF.name}</MenuItem>
-          <MenuItem value={ALGO_TYPES.BP}>{ALGO_TYPES.BP.name}</MenuItem>
-        </Select>
-      </FormControl>
-    );
+  if (path === null) {
+    theory_div.innerHTML = "";
+  }
+  else {
+    theory_div.innerHTML = `<object type="text/html" data="${path}" ></object>`;
   }
 }
 
@@ -101,11 +103,11 @@ class AlgoForm extends React.Component {
  *     BUTTONS
  *******************/
 
-function handleInit() {
+function handleInit(algo_label) {
   ws.send(
     JSON.stringify({action: 'init',
-                    algo: ALGO_SELECTION.label,
-                    num_particles: NUM_PARTICLES})
+                    algo: algo_label,
+                    num_particles: NUM_PARTICLES});
   );
 
   iter_count = 0;
@@ -282,18 +284,30 @@ class DrawCanvas extends React.Component {
  *   WHOLE PAGE
  *******************/
 
-class Board extends React.Component {
+class SandboxPage extends React.Component {
   constructor(props) {
     super(props);
 
-    ws=new WebSocket("ws://localhost:8080/bp");
-    ws.onmessage= (evt) => this.handleMessage(evt);
+    ws = new WebSocket("ws://localhost:8080/bp");
+    ws.onmessage = (evt) => this.handleMessage(evt);
 
-    ws.onopen=function(evt){
+    ws.onopen = function(evt) {
       ws.send("Hello");
     }
 
+    // Jet colourmap colours.
+    this.colours = ["#00007f",
+                    "#0000ff",
+                    "#007fff",
+                    "#14ffe2",
+                    "#7bff7b",
+                    "#e2ff14",
+                    "#ff9700",
+                    "#ff2100",
+                    "#7f0000"];
+
     this.state = {
+      algo: ALGO_TYPES.PF,
       circles: Array(NUM_PARTICLES).fill(null),
       l1: Array(NUM_PARTICLES).fill(null),
       l2: Array(NUM_PARTICLES).fill(null),
@@ -303,15 +317,6 @@ class Board extends React.Component {
       l6: Array(NUM_PARTICLES).fill(null),
       l7: Array(NUM_PARTICLES).fill(null),
       l8: Array(NUM_PARTICLES).fill(null),
-      colours: ["#00007f",
-                "#0000ff",
-                "#007fff",
-                "#14ffe2",
-                "#7bff7b",
-                "#e2ff14",
-                "#ff9700",
-                "#ff2100",
-                "#7f0000"]
     };
   }
 
@@ -329,10 +334,14 @@ class Board extends React.Component {
     NEW_MSG = true;
   }
 
+  handleAlgoSelect(event) {
+    this.setState({algo: event.target.value});
+  }
+
   render() {
     return (
       <div>
-        <AlgoForm />
+        <AlgoForm onChange={(event) => this.handleAlgoSelect(event)} value={this.state.algo}/>
         <div className="canvas">
           <img id="obs" src="../../media/obs.png" alt="" />
           <DrawCanvas circles={this.state.circles}
@@ -344,11 +353,11 @@ class Board extends React.Component {
                       l6={this.state.l6}
                       l7={this.state.l7}
                       l8={this.state.l8}
-                      colours={this.state.colours} />
+                      colours={this.colours} />
         </div>
         <div className="controls">
           <div className="button-wrapper">
-            <Button text="Initialize" onClick={() => handleInit()} />
+            <Button text="Initialize" onClick={() => handleInit(this.state.algo.label)} />
             <Button text="Start" onClick={() => handleStart()} />
             <Button text="Estimate" onClick={() => handleEstimate()} />
           </div>
@@ -356,6 +365,7 @@ class Board extends React.Component {
           <DiscreteSlider label="particles" min={10} max={500} default={DEFAULT_NUM_PARTICLES} step={10}/>
           <DiscreteSlider label="iterations" min={5} max={200} default={DEFAULT_NUM_ITERS} step={5}/>
         </div>
+        {this.state.algo.render()}
       </div>
     );
   }
@@ -366,6 +376,6 @@ window.onclose=function(){
 }
 
 ReactDOM.render(
-  <Board />,
+  <SandboxPage />,
   document.getElementById('appRoot')
 );
