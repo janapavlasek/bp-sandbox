@@ -107,7 +107,7 @@ function handleInit(algo_label) {
   ws.send(
     JSON.stringify({action: 'init',
                     algo: algo_label,
-                    num_particles: NUM_PARTICLES});
+                    num_particles: NUM_PARTICLES})
   );
 
   iter_count = 0;
