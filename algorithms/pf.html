@@ -6,11 +6,246 @@
   <link rel="stylesheet" href="../assets/main.css" />
   <link rel="stylesheet" href="algos.css" />
 
+  <!-- MathJax for LaTEX processing. -->
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
   <title>Particle Filter Theory</title>
 </head>
 
 <body>
   <h2>Theory: Particle Filter</h2>
+
+  <div class="container">
+    <p>
+      The particle filter is a nonparametric implementation of the <em>Bayes' filter</em>. We start by describing this formulation below.
+    </p>
+
+    <h3>The Bayes' Filter</h3>
+    <p>
+      The Bayes' filter is a recursive algorithm for estimating the <em>belief</em> of a hidden state \(x_t\). The belief represents the posterior probability, defined by:
+
+      $$bel(x_t) = p(x_t|z_{1:t}, u_{1:t})$$
+
+      where \(z_{1:t}\) are the measurements up to time \(t\), and \(u_{1:t}\) are the control commands up to time \(t\). The graphical model representing this system is as follows:
+    </p>
+
+    <figure>
+      <img class="center" src="media/graph.png" style="width: 60%;">
+      <figcaption>Fig.1 - Graphical model for the Bayes' Filter. Hidden nodes \(x_i\) represent the state, and observed nodes \(z_i\) and \(u_i\) are the measurements and control commands, respectively.</figcaption>
+    </figure>
+
+    <p>
+      The Bayes' filter updates the posterior at each iteration as follows:
+
+      $$\begin{align}
+        \overline{bel}(x_t) &= \int{p(x_t|x_{t-1}, u_t) bel(x_{t-1}) dx} \\
+        bel(x_t) &\propto p(z_t|x_t) \overline{bel}(x_t) \\
+      \end{align}$$
+
+      We call \(\overline{bel}(x_t)\) the <em>prediction</em>, which corresponds to \(p(x_t | z_{1:t-1}, u_{1:t})\), or the predicted belief before the measurement is taken into account. The term \(bel(x_{t-1})\) is called the <em>prior</em>. To implement a Bayes' filter, we need to have access to probabilities \(p(z_t|x_t)\), \(p(x_t|x_{t-1}, u_t)\) and \(bel(x_0)\).
+    </p>
+
+    <!-- Bayes filter derivation is collapsible. -->
+    <button class="accordion">Expand for Bayes' Filter derivation</button>
+    <div class="panel">
+      <p>
+        We want to represent the posterior \(p(x_t|z_{1:t}, u_{1:t})\) in terms of the probabilities we have access to, \(p(z_t|x_t)\), \(p(x_t|x_{t-1}, u_t)\) and \(bel(x_{t-1})\). We apply Bayes' Theorem:
+
+        $$\begin{align}
+          p(x_t|z_{1:t}, u_{1:t}) &= \frac{p(z_t|x_t, z_{1:t-1}, u_{1:t}) p(x_t|z_{1:t-1}, u_{1:t})}{p(z_t|z_{1:t-1}, u_{1:t})} \\
+                                  &\propto p(z_t|x_t, z_{1:t-1}, u_{1:t}) p(x_t|z_{1:t-1}, u_{1:t}) \\
+        \end{align}$$
+
+        From the graph, we can tell \(z_t\) is independent of \(z_{1:t-1}\) and \(u_{1:t\}), so we can simplify to get:
+
+        $$bel(x_t) \propto p(z_t|x_t) p(x_t|z_{1:t-1}, u_{1:t}) = p(z_t|x_t) \overline{bel}(x_t)$$
+
+        Now, to get an equation for the prediction \(\overline{bel}(x_t)\), we first apply the definition of conditional probability, and then write the equation with respect to \(x_{t-1}\):
+
+        $$\begin{align}
+          \overline{bel}(x_t) &= p(x_t|z_{1:t-1}, u_{1:t}) = \frac{p(x_t, z_{1:t-1}, u_{1:t})}{p(z_{1:t-1}, u_{1:t})} \\
+            &= \int{\frac{p(x_t, x_{t-1}, z_{1:t-1}, u_{1:t}) }{p(z_{1:t-1}, u_{1:t})} dx_{t-1}} \\
+            &= \int{\frac{p(x_t | x_{t-1}, z_{1:t-1}, u_{1:t}) p(x_{t-1} | z_{1:t-1}, u_{1:t}) p(z_{1:t-1}, u_{1:t}) }{p(z_{1:t-1}, u_{1:t})} dx_{t-1}} \\
+            &= \int{p(x_t | x_{t-1}, z_{1:t-1}, u_{1:t}) p(x_{t-1} | z_{1:t-1}, u_{1:t}) dx_{t-1}} \\
+        \end{align}$$
+
+        We use the Markov assumption, which tells us that \(x_t\) depends only on \(x_{t-1}\) and the current state, which can also be seen from the graph, to simplify further:
+
+        $$\begin{align}
+          \overline{bel}(x_t) &= \int{p(x_t | x_{t-1}, u_{t}) p(x_{t-1} | z_{1:t-1}, u_{1:t-1}) dx_{t-1}} \\
+            &= \int{p(x_t | x_{t-1}, u_{t}) bel(x_{t-1}) dx_{t-1}} \\
+        \end{align}$$
+      </p>
+    </div>
+
+    <div class="summary">
+      <h4>Summary</h4>
+
+      <p>
+        The Bayes' filter estimates the <em>posterior</em> probability, or the <em>belief</em> of a hidden state, through the following functions:
+
+        $$\begin{align}
+          \overline{bel}(x_t) &= \int{p(x_t|x_{t-1}, u_t) bel(x_{t-1}) dx} \\
+          bel(x_t) &\propto p(z_t|x_t) \overline{bel}(x_t) \\
+        \end{align}$$
+      </p>
+
+      <b>Terms:</b>
+      <table>
+        <tr>
+          <td><em>posterior</em></td>
+          <td>\(p(x_t|z_{1:t}, u_{1:t})\)</td>
+        </tr>
+        <tr>
+          <td><em>belief</em></td>
+          <td>\(bel(x_t)\), equivalent to the posterior</td>
+        </tr>
+        <tr>
+          <td><em>prior</em></td>
+          <td>\(p(x_{t-1} | z_{1:t-1}, u_{1:t-1})\), or \(bel(x_{t-1})\)</td>
+        </tr>
+        <tr>
+          <td><em>prediction</em></td>
+          <td>\(p(x_t | z_{1:t-1}, u_{1:t})\), or \(\overline{bel}(x_t)\)</td>
+        </tr>
+      </table>
+
+      <b>Required:</b>
+      <table>
+        <tr>
+          <td><em>motion model</em></td>
+          <td>\(p(x_t|x_{t-1}, u_t)\)</td>
+        </tr>
+        <tr>
+          <td><em>observation model</em></td>
+          <td>\(p(z_t|x_t)\)</td>
+        </tr>
+        <tr>
+          <td><em>initial belief</em></td>
+          <td>\(bel(x_0)\)</td>
+        </tr>
+      </table>
+    </div>
+
+    <h3>The Particle Filter</h3>
+
+    <p>
+      In the particle filter, the belief, or posterior, is approximated by a finite set of \(M\) particles, \(\mathcal{X_t} = \{x_t^1, x_t^2, \dots, x_t^M\}\). The likelihood that any particle \(x_t^m\) belongs to \(\mathcal{X_t}\) is proportional to the belief:
+
+      $$x_t^m \sim bel(x_t) = p(x_t|z_{1:t}, u_{1:t})$$
+
+      The algorithm for the particle filter is as follows:
+    </p>
+
+    <figure>
+      <pre><code><b>function</b> particle_filter( X_t-1, u_t, z_t ):
+  X_t' = X_t = &empty;
+
+  <b>for</b> x_t-1 <b>in</b> X_t-1 <b>do</b>:
+    sample x_t &#8764; p(x_t | u_t, x_t-1)
+    w_t = p(z_t | x_t)
+    X_t' = X_t' &#8746; {(x_t, w_t)}
+
+  <b>for</b> (x_t, w_t) <b>in</b> X_t' <b>do</b>:
+    with probability &prop; w_t:
+      X_t = X_t &#8746; {(x_t)}</code></pre>
+      <figcaption>Alg. 1: The Particle Filter.</figcaption>
+    </figure>
+
+    <p>
+      The initial distribution constructed by the algorithm, \(X_t'\), approximates \(\overline{bel}(x_t)\), but does not exactly represent it. The second step involves weighing the new particles by the observation model and then sampling them, using importance sampling with replacement. The final particle set will again be an approximate representation of \(bel(x)\), given a sufficient number of particles, but not the exact distribution.
+    </p>
+
+    <h4>Importance Sampling</h4>
+
+    <p>
+      Importance sampling allows us to refocus the samples such that they represent the underlying probability. Given a <em>proposal distribution</em>, called \(g(x)\), we use importance sampling to draw samples from a <em>target distribution</em>, called \(f(x)\), which we can't directly sample from. We must have that \(f(x) \gt 0\) implies \(g(x) \gt 0\), so there is a non-zero chance of sampling from the proposal distribution everywhere there might be a sample from \(f(x)\).
+    </p>
+
+    <p>To illustrate, consider the example below:</p>
+
+    <figure>
+      <img class="center" src="media/importance_sampling.png" style="width: 80%;">
+      <figcaption>Fig.2 - Importance sampling illustration, from Probabilistic Robotics [1].</figcaption>
+    </figure>
+
+    <p>
+      The top panel represents the target distribution \(f(x)\), from which we cannot draw directly. The middle panel shows particles drawn from the proposal distribution \(g(x)\). We weigh the particles from \(g(x)\) by the ratio:
+
+      $$w_i = \frac{f(x_i)}{g(x_i)}$$
+
+      The bottom panel shows the result, where the height of the sample is proportional to its weight.
+    </p>
+
+    <p>
+      In the particle filter, \(f(x)\) is the belief \(bel(x)\) which we are trying to represent, and \(g(x)\) is the proposal distribution \(\overline{bel}(x_t)\). Importance sampling is guaranteed to converge to the true density given a sufficient number of particles and given that \(f(x) \gt 0 \implies g(x) \gt 0\) holds.
+    </p>
+
+    <!-- Weight derivation is collapsible. -->
+    <button class="accordion">Expand for derivation of the weight used in importance sampling.</button>
+    <div class="panel">
+      <p>
+        We will show that the appropriate weight for the particles is \(w_t = p(z_t | x_t)\) if we resample with importance sampling. We consider \(bel_{0:t} = p(x_{0:t}|u_{1:t}, z_{1:t})\), which will allow us to avoid the integral that shows up in the Bayes' filter derivation. First, we expand and apply Bayes' rule:
+
+        $$\begin{align}
+          p(x_{0:t}|u_{1:t}, z_{1:t}) &= \frac{p(z_t|x_{0:t}, u_{1:t}, z_{1:t-1}) p(x_{0:t}|u_{1:t}, z_{1:t-1}) }{p(z_t|u_{1:t}, z_{1:t-1})} \\
+           &\propto p(z_t|x_t) p(x_{0:t}|u_{1:t}, z_{1:t-1}) \\
+        \end{align}$$
+
+        We expand the second term further:
+
+        $$\begin{align}
+          p(x_{0:t}|u_{1:t}, z_{1:t-1}) &= \frac{ p(x_{0:t},u_{1:t}, z_{1:t-1}) }{p(u_{1:t}, z_{1:t-1})} \\
+           &= \frac{ p(x_t|x_{0:t-1},u_{1:t}, z_{1:t-1}) p(x_{0:t-1}|u_{1:t}, z_{1:t-1}) p(u_{1:t}, z_{1:t-1}) }{p(u_{1:t}, z_{1:t-1})} \\
+           &= p(x_t|x_{t-1},u_t) p(x_{0:t-1}|u_{1:t-1}, z_{1:t-1}) \\
+           &= p(x_t|x_{t-1},u_t) bel(x_{0:t-1}) \\
+        \end{align}$$
+
+        The belief is therefore:
+
+        $$bel(x_{0:t}) \propto p(z_t|x_t) p(x_t|x_{t-1},u_t) bel(x_{0:t-1}) $$
+
+        This is our target distribution. The proposal distribution comes from the prediction step and is represented by:
+
+        $$\overline{bel}(x_{0:t}) = p(x_t|x_{t-1},u_t) bel(x_{0:t-1})$$
+
+        From importance sampling, the weights are defined as:
+
+        $$\begin{align}
+          w_t &= \frac{f(x_t)}{g(x_t)} = \frac{bel(x_{0:t})}{\overline{bel}(x_{0:t})} \\
+            &\propto \frac{p(z_t|x_t) p(x_t|x_{t-1},u_t) bel(x_{0:t-1})}{p(x_t|x_{t-1},u_t) bel(x_{0:t-1})} \\
+            &= p(z_t|x_t) \\
+        \end{align}$$
+      </p>
+    </div>
+
+    <h4>Practical Considerations</h4>
+
+    <p>
+      Note that in the toy problem here, there is no control command \(u_t\), and there is only a single observation \(z_0\). We are therefore further approximating the particle filter in this case. We assume that the control command is always zero, with some Gaussian noise, \( p(x_t | u_t, x_{t-1}) = \mathcal{N}(x_{t-1}, \Sigma)\). We also assume \(z_t = z_0\), and we repeat the procedure for a finite number of iterations, until convergence. We might instead refer to this algorithm of iterating over a single observation as <em>particle optimization</em>.
+    </p>
+
+    <p>
+      This is a slight abuse of the particle filter, since the underlying belief is the same at every iteration. However, we often can't acheive convergence in a single iteration for a few practical reasons. To adequately cover a high dimensional space, such that the true variable would appear in the initial distribution, we would require a huge number of particles which would render our algorithm intractible. This results mainly from the fact that we often don't have a very good guess for the initial distribution, so our initial belief \(bel(x_0)\) is bad. The exact observation model, \(p(z_t|x_t)\), is also rarely available, so we need to approximate it with a <em>likelihood</em>, which we design to be proportional to the true distribution. This induces inaccurate weights. The iterative procedure (hopefully) mitigates this problem by eventually accumulating particles around the true state.
+    </p>
+
+    <!-- REFERENCES -->
+
+    <div class="references">
+      <h3>References</h3>
+
+      <ol>
+        <li>Thrun, Sebastian, Wolfram Burgard, and Dieter Fox. <em>Probabilistic Robotics</em>. MIT Press, 2005.</li>
+      </ol>
+
+    </div>
+
+  </div>
+
+  <!-- SCRIPTS -->
+
+  <script type="text/javascript" src="js/accordion.js"></script>
 
 </body>
 </html>

@@ -1,3 +1,81 @@
+/* COLOURS:
+Emphasis: #FF0068;
+Lighter emphasis: #ff7fb3;
+Light grey for faded fonts: #646464;
+Light grey for backgrounds: #F5F5F5;
+*/
+
 body {
   padding: 0;
+}
+
+figcaption {
+  font-size: 13px;
+  color: #646464;
+  padding-top: 1em;
+}
+
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.summary {
+  border-style: dashed;
+  border-color: #F5F5F5;
+  padding: 0 1em 1em 1em;
+  margin: 2em 0;
+}
+
+.references ol {
+  font-size: 15px;
+}
+
+th, td {
+  padding: 0.3em 0.5em;
+}
+
+/* Code */
+
+pre {
+  font-family: Consolas,"courier new";
+  color: #FF0068;
+  background-color: #F5F5F5;
+  font-size: 105%;
+  padding: 0.5em;
+  margin-bottom: 0;
+}
+
+
+/* Accordion */
+
+button {
+  font: inherit;
+}
+
+.accordion {
+  background-color: #F5F5F5;
+  color: #444;
+  cursor: pointer;
+  padding: 1em;
+  width: 100%;
+  text-align: left;
+  border: none;
+  outline: none;
+  transition: 0.4s;
+}
+
+.active, .accordion:hover {
+  background-color: #FF0068;
+  color: #fff;
+}
+
+.panel {
+  padding: 0 1em;
+  background-color: white;
+  display: none;
+  overflow: hidden;
+  border-style: none solid solid;
+  border-color: #eee;
 }
