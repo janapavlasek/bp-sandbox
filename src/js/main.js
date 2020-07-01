@@ -365,7 +365,6 @@ class SandboxPage extends React.Component {
           <DiscreteSlider label="particles" min={10} max={500} default={DEFAULT_NUM_PARTICLES} step={10}/>
           <DiscreteSlider label="iterations" min={5} max={200} default={DEFAULT_NUM_ITERS} step={5}/>
         </div>
-        {this.state.algo.render()}
       </div>
     );
   }

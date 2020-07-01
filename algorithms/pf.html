@@ -14,6 +14,16 @@
 </head>
 
 <body>
+  <header>
+    <h1>Belief Propagation</h1>
+    <aside>A sandbox for testing and comparing algorithms.</aside>
+
+    <nav id="nav">
+      <button><a href="../canvas.html">Spider App</a></button>
+      <button><a href="#">Particle Filter</a></button>
+    </nav>
+  </header>
+
   <h2>Theory: Particle Filter</h2>
 
   <div class="container">
@@ -57,7 +67,7 @@
                                   &\propto p(z_t|x_t, z_{1:t-1}, u_{1:t}) p(x_t|z_{1:t-1}, u_{1:t}) \\
         \end{align}$$
 
-        From the graph, we can tell \(z_t\) is independent of \(z_{1:t-1}\) and \(u_{1:t\}), so we can simplify to get:
+        From the graph, we can tell \(z_t\) is independent of \(z_{1:t-1}\) and \(u_{1:t}\), so we can simplify to get:
 
         $$bel(x_t) \propto p(z_t|x_t) p(x_t|z_{1:t-1}, u_{1:t}) = p(z_t|x_t) \overline{bel}(x_t)$$
 
@@ -179,7 +189,7 @@
     </p>
 
     <p>
-      In the particle filter, \(f(x)\) is the belief \(bel(x)\) which we are trying to represent, and \(g(x)\) is the proposal distribution \(\overline{bel}(x_t)\). Importance sampling is guaranteed to converge to the true density given a sufficient number of particles and given that \(f(x) \gt 0 \implies g(x) \gt 0\) holds.
+      In the particle filter, \(f(x)\) is the belief \(bel(x_t)\) which we are trying to represent, and \(g(x)\) is the proposal distribution \(\overline{bel}(x_t)\). Importance sampling is guaranteed to converge to the true density given a sufficient number of particles and given that \(f(x) \gt 0 \implies g(x) \gt 0\) holds.
     </p>
 
     <!-- Weight derivation is collapsible. -->

@@ -1,3 +1,10 @@
+/* COLOURS:
+Emphasis: #FF0068;
+Lighter emphasis: #ff7fb3;
+Light grey for faded fonts: #646464;
+Light grey for backgrounds: #F5F5F5;
+*/
+
 header {
   margin-bottom: 2em;
 }
@@ -36,7 +43,7 @@ h1,h2,h3 {
 }
 
 .button {
-  background-color: #4CAF50; /* Green */
+  background-color: #FF0068;
   border: none;
   color: white;
   padding: 15px 32px;
@@ -47,10 +54,40 @@ h1,h2,h3 {
   margin: 0 20px 0 20px;
 }
 
+.button:hover {
+  background-color: #ff7fb3;
+}
+
 .button-wrapper {
   text-align: center;
 }
 
 .progress {
   margin: 1em auto;
+}
+
+/* Nav */
+
+#nav {
+  margin: 1em 0 0 0;
+  text-align: center;
+  background-color: #F5F5F5;
+  color:#444;
+}
+
+nav > button {
+  background-color: inherit;
+  border-style: none;
+  font: inherit;
+  padding: 1em 2em;
+}
+
+nav > button:hover {
+  background-color: #FF0068;
+  color: #fff;
+}
+
+button > a {
+  color: inherit;
+  text-decoration: none;
 }
