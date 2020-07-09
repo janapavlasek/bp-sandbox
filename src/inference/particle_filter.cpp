@@ -76,7 +76,8 @@ std::vector<double> ParticleFilter::reweight(const std::vector<SpiderParticle>& 
 std::vector<SpiderParticle> ParticleFilter::resample(const std::vector<SpiderParticle>& particles, std::vector<double>& weights)
 {
   std::vector<double> normalized_weights = normalizeVector(weights, false);
-  std::vector<size_t> keep = importanceSample(num_particles_, normalized_weights);
+  // std::vector<size_t> keep = importanceSample(num_particles_, normalized_weights);
+  std::vector<size_t> keep = lowVarianceSample(num_particles_, normalized_weights);
 
   std::vector<SpiderParticle> new_particles;
   std::vector<double> new_weights;

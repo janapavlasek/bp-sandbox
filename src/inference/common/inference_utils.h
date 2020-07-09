@@ -92,6 +92,34 @@ static std::vector<size_t> importanceSample(const size_t num_particles,
   return sample_ind;
 }
 
+static std::vector<size_t> lowVarianceSample(const size_t num_particles,
+                                             const std::vector<double>& normalized_weights)
+{
+  std::vector<size_t> sample_ind;
+
+  if (num_particles < 1 || normalized_weights.size() < 1) return sample_ind;
+
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  std::uniform_real_distribution<float> distribution(0.0, 1.0 / num_particles);
+  float r = distribution(gen);
+  int idx = 0;
+  float sum = normalized_weights[idx];
+
+  for (size_t i = 0; i < num_particles; ++i)
+  {
+    float u = r + i * (1. / num_particles);
+    while (u > sum)
+    {
+      idx++;
+      sum += normalized_weights[idx];
+    }
+    sample_ind.push_back(idx);
+  }
+
+  return sample_ind;
+}
+
 static SpiderParticle jitterParticle(const SpiderParticle& particle, const float jitter_pix, const float jitter_angle)
 {
   std::random_device rd{};
