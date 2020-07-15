@@ -120,12 +120,14 @@ static std::vector<size_t> lowVarianceSample(const size_t num_particles,
   return sample_ind;
 }
 
-static SpiderParticle jitterParticle(const SpiderParticle& particle, const float jitter_pix, const float jitter_angle)
+static SpiderParticle jitterParticle(const SpiderParticle& particle, const float jitter_pix,
+                                     const float jitter_angle, const float jitter_param)
 {
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<float> dpix{0, jitter_pix};
   std::normal_distribution<float> dangle{0, jitter_angle};
+  std::normal_distribution<float> dparam{0, jitter_param};
 
   std::vector<float> new_joints;
   for (auto& j : particle.joints)
@@ -133,21 +135,24 @@ static SpiderParticle jitterParticle(const SpiderParticle& particle, const float
     new_joints.push_back(j + dangle(gen));
   }
 
-  std::normal_distribution<float> dx{particle.x, jitter_pix};
-  std::normal_distribution<float> dy{particle.y, jitter_pix};
-  SpiderParticle new_particle(particle.x + dpix(gen), particle.y + dpix(gen), new_joints);
+  SpiderParticle new_particle(particle.x + dpix(gen), particle.y + dpix(gen),
+                              particle.root.radius + dparam(gen),
+                              particle.links[0].width + dparam(gen),
+                              particle.links[0].height + dparam(gen),
+                              new_joints);
 
   return new_particle;
 }
 
 static std::vector<SpiderParticle> jitterParticles(const std::vector<SpiderParticle>& particles,
-                                                   const float jitter_pix, const float jitter_angle)
+                                                   const float jitter_pix, const float jitter_angle,
+                                                   const float jitter_param)
 {
   std::vector<SpiderParticle> new_particles;
 
   for (auto& p : particles)
   {
-    new_particles.push_back(jitterParticle(p, jitter_pix, jitter_angle));
+    new_particles.push_back(jitterParticle(p, jitter_pix, jitter_angle, jitter_param));
   }
 
   return new_particles;

@@ -190,11 +190,11 @@ class Circle extends React.Component {
     var circleStyle = {
       position: "absolute",
       backgroundColor: this.props.colour,
-      top: this.props.y - CIRCLE_RADIUS / 2 + "px",
-      left: this.props.x - CIRCLE_RADIUS / 2 + "px",
+      top: this.props.y - this.props.r + "px",
+      left: this.props.x - this.props.r + "px",
       borderRadius: "50%",
-      width:"20px",
-      height:"20px",
+      width: 2 * this.props.r + "px",
+      height: 2 * this.props.r + "px",
       opacity:ALPHA,
     };
     return (
@@ -206,8 +206,8 @@ class Circle extends React.Component {
 
 class Rectangle extends React.Component {
   render() {
-    var shift_x = -RECT_WIDTH / 2;
-    var shift_y = -RECT_HEIGHT / 2;
+    var shift_x = -this.props.w / 2;
+    var shift_y = -this.props.h / 2;
 
     var corner_tf = "translate(" + shift_x + "px," + shift_y +"px)";
     var rot = "rotate(" + this.props.theta + "rad)";
@@ -219,8 +219,8 @@ class Rectangle extends React.Component {
       position: "absolute",
       backgroundColor: this.props.colour,
       transform: tf,
-      width:"26.6px",
-      height:"7.6px",
+      width: this.props.w + "px",
+      height: this.props.h + "px",
       opacity:ALPHA,
     };
     return (
@@ -240,6 +240,7 @@ class DrawCanvas extends React.Component {
           <Circle key={i + "circ"}
                   x={this.props.circles[i][0]}
                   y={this.props.circles[i][1]}
+                  r={this.props.circles[i][2]}
                   colour={this.props.colours[0]}/>
         );
       }
@@ -256,6 +257,8 @@ class DrawCanvas extends React.Component {
                      x={linkInfo[i][0]}
                      y={linkInfo[i][1]}
                      theta={linkInfo[i][2]}
+                     w={linkInfo[i][3]}
+                     h={linkInfo[i][4]}
                      colour={colour}/>
           );
       }
@@ -343,7 +346,7 @@ class SandboxPage extends React.Component {
       <div>
         <AlgoForm onChange={(event) => this.handleAlgoSelect(event)} value={this.state.algo}/>
         <div className="canvas">
-          <img id="obs" src="../../media/obs.png" alt="" />
+          <img id="obs" src="../../data/obs.png" alt="" />
           <DrawCanvas circles={this.state.circles}
                       l1={this.state.l1}
                       l2={this.state.l2}

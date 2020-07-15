@@ -19,25 +19,31 @@ ParticleFilter::ParticleFilter() :
 std::map<std::string, ParticleList> ParticleFilter::init(const int num_particles)
 {
   num_particles_ = num_particles;
+  update_count_ = 0;
   particles_.clear();
   weights_.clear();
 
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::uniform_real_distribution<float> pix_dist(0, obs_.width - 1);
-  // std::normal_distribution<float> pix_dist{0, 10};
-  std::uniform_real_distribution<float> dist(0, 2 * PI);
+  std::normal_distribution<float> h_dist{8, 2};
+  std::normal_distribution<float> w_dist{27, 5};
+  std::normal_distribution<float> r_dist{10, 2};
+  std::normal_distribution<float> dist{0, PI / 8};
 
   for (size_t i = 0; i < num_particles; ++i)
   {
     std::vector<float> joints;
-    for (size_t i = 0; i < num_joints_; ++i)
+    for (size_t i = 0; i < num_joints_ / 2; ++i)
+    {
+      joints.push_back(normalize_angle(i * PI / 2 + dist(gen)));
+    }
+    for (size_t i = num_joints_ / 2; i < num_joints_; ++i)
     {
       joints.push_back(dist(gen));
     }
 
-    // SpiderParticle sp(200 + pix_dist(gen), 136 + pix_dist(gen), joints);
-    SpiderParticle sp(pix_dist(gen),pix_dist(gen), joints);
+    SpiderParticle sp(pix_dist(gen), pix_dist(gen), r_dist(gen), w_dist(gen), h_dist(gen), joints);
     particles_.push_back(sp);
   }
 
@@ -50,7 +56,7 @@ std::map<std::string, ParticleList> ParticleFilter::update()
 {
   // Add noise to particles, but keep the best one.
   auto best = particleEstimate();
-  particles_ = jitterParticles(particles_, 3, 0.1);
+  particles_ = jitterParticles(particles_, 2, 0.1, 2);
   particles_.push_back(best);
 
   weights_ = reweight(particles_, obs_);
@@ -75,7 +81,7 @@ std::vector<double> ParticleFilter::reweight(const std::vector<SpiderParticle>& 
 
 std::vector<SpiderParticle> ParticleFilter::resample(const std::vector<SpiderParticle>& particles, std::vector<double>& weights)
 {
-  std::vector<double> normalized_weights = normalizeVector(weights, false);
+  std::vector<double> normalized_weights = normalizeVector(weights, true);
   // std::vector<size_t> keep = importanceSample(num_particles_, normalized_weights);
   std::vector<size_t> keep = lowVarianceSample(num_particles_, normalized_weights);
 

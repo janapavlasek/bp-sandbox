@@ -16,6 +16,11 @@ static inline float normalize_angle(float angle)
   return result;
 }
 
+static inline double sigmoid(double x, double alpha = 0.1)
+{
+  return 2 / (exp(-alpha * x) + 1) - 1;
+}
+
 };  // namespace BPSandbox
 
 #endif  // BP_SANDBOX_INFERENCE_COMMON_UTILS_H
