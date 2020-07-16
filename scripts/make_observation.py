@@ -221,10 +221,8 @@ def make_observation():
     step = 40
     start = IMG_SIZE[0] % (step * int(IMG_SIZE[0] / step)) / 2
     num_grids = IMG_SIZE[0] / step + 1
-    # pos = [start, start]
     order = np.arange(0, num_grids * num_grids)
     np.random.shuffle(order)
-    print(order)
 
     area = float(IMG_SIZE[0] * IMG_SIZE[1])
     min_r, min_w, min_h = CIRCLE["mean"], RECT["mean"]["width"], RECT["mean"]["height"]
@@ -232,8 +230,6 @@ def make_observation():
     min_area, max_area = [RECT["mean"]["width"] * RECT["mean"]["height"]] * 2
     idx = 0
     while np.sum(obs) / area < PERCENT_COVERAGE:
-        print(np.sum(obs) / area)
-        # grid = np.random.randint(0, num_grids, 2)
         col = order[idx] % num_grids
         row = order[idx] / num_grids
         x = np.random.normal(col * step + start, 10)
@@ -265,12 +261,6 @@ def make_observation():
 
         idx += 1
         idx = idx % (num_grids * num_grids)
-
-        # pos[0] += step
-        # if pos[0] > IMG_SIZE[0]:
-        #     pos[1] += step
-        # pos = [start if ele > size else ele for ele, size in zip(pos, IMG_SIZE)]
-        # print(pos)
 
     print("Radius limits: {} to {}".format(min_r, max_r))
     print("Width limits: {} to {}".format(min_w, max_w))
