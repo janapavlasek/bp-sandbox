@@ -346,7 +346,7 @@ class SandboxPage extends React.Component {
       <div>
         <AlgoForm onChange={(event) => this.handleAlgoSelect(event)} value={this.state.algo}/>
         <div className="canvas">
-          <img id="obs" src="../../data/obs.png" alt="" />
+          <img id="obs" src="app/media/obs.png" alt="" />
           <DrawCanvas circles={this.state.circles}
                       l1={this.state.l1}
                       l2={this.state.l2}
