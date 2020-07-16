@@ -120,8 +120,8 @@ static std::vector<size_t> lowVarianceSample(const size_t num_particles,
   return sample_ind;
 }
 
-static SpiderParticle jitterParticle(const SpiderParticle& particle, const float jitter_pix,
-                                     const float jitter_angle, const float jitter_param)
+static spider::SpiderParticle jitterParticle(const spider::SpiderParticle& particle, const float jitter_pix,
+                                             const float jitter_angle, const float jitter_param)
 {
   std::random_device rd{};
   std::mt19937 gen{rd()};
@@ -135,20 +135,20 @@ static SpiderParticle jitterParticle(const SpiderParticle& particle, const float
     new_joints.push_back(j + dangle(gen));
   }
 
-  SpiderParticle new_particle(particle.x + dpix(gen), particle.y + dpix(gen),
-                              particle.root.radius + dparam(gen),
-                              particle.links[0].width + dparam(gen),
-                              particle.links[0].height + dparam(gen),
-                              new_joints);
+  spider::SpiderParticle new_particle(particle.x + dpix(gen), particle.y + dpix(gen),
+                                      particle.root.radius + dparam(gen),
+                                      particle.links[0].width + dparam(gen),
+                                      particle.links[0].height + dparam(gen),
+                                      new_joints);
 
   return new_particle;
 }
 
-static std::vector<SpiderParticle> jitterParticles(const std::vector<SpiderParticle>& particles,
-                                                   const float jitter_pix, const float jitter_angle,
-                                                   const float jitter_param)
+static spider::SpiderList jitterParticles(const spider::SpiderList& particles,
+                                          const float jitter_pix, const float jitter_angle,
+                                          const float jitter_param)
 {
-  std::vector<SpiderParticle> new_particles;
+  spider::SpiderList new_particles;
 
   for (auto& p : particles)
   {

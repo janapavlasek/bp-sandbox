@@ -19,6 +19,8 @@
 namespace BPSandbox
 {
 
+namespace spider
+{
 typedef std::vector<std::vector<float> > ParticleList;
 typedef std::map<std::string, std::vector<float> > ParticleState;
 typedef std::map<std::string, ParticleList > ParticleStateList;
@@ -432,6 +434,31 @@ public:
   }
 };
 
+typedef std::vector<SpiderParticle > SpiderList;
+
+inline ParticleStateList particlesToMap(const SpiderList& particles)
+{
+  std::map<std::string, ParticleList> particle_map;
+
+  if (particles.size() < 1) return particle_map;
+
+  particle_map.insert({"circles", ParticleList()});
+  for (size_t i = 0; i < particles[0].num_joints; ++i)
+  {
+    particle_map.insert({"l" + std::to_string(i + 1), ParticleList()});
+  }
+
+  for (auto& p : particles)
+  {
+    for (auto& data : p.toPartStates())
+    {
+      particle_map[data.first].push_back(data.second);
+    }
+  }
+  return particle_map;
+}
+
+}  // namespace spider
 }  // namespace BPSandbox
 
 #endif  // BP_SANDBOX_INFERENCE_COMMON_SPIDER_PARTICLE_H

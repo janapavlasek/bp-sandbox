@@ -9,50 +9,74 @@ ParticleFilter::ParticleFilter() :
   num_particles_(50),
   update_count_(0)
 {
-  link_names_.push_back("circles");
-  for (size_t i = 0; i < num_joints_; ++i)
-  {
-    link_names_.push_back("l" + std::to_string(i + 1));
-  }
 }
 
-std::map<std::string, ParticleList> ParticleFilter::init(const int num_particles)
+spider::ParticleStateList ParticleFilter::init(const int num_particles, const bool use_obs)
 {
   num_particles_ = num_particles;
   update_count_ = 0;
+
   particles_.clear();
   weights_.clear();
+
+  auto obs_circ = obs_.getCircles();
 
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::uniform_real_distribution<float> pix_dist(0, obs_.width - 1);
-  std::normal_distribution<float> h_dist{8, 2};
-  std::normal_distribution<float> w_dist{27, 5};
-  std::normal_distribution<float> r_dist{10, 2};
-  std::normal_distribution<float> dist{0, PI / 8};
+  std::uniform_int_distribution<int> idx_dist(0, obs_circ.size() - 1);
 
   for (size_t i = 0; i < num_particles; ++i)
   {
-    std::vector<float> joints;
-    for (size_t i = 0; i < num_joints_ / 2; ++i)
+    float x, y, r = 10;
+    if (use_obs)
     {
-      joints.push_back(normalize_angle(i * PI / 2 + dist(gen)));
+      auto circ_sample = obs_circ[idx_dist(gen)];
+      x = circ_sample[1];
+      y = circ_sample[0];
+      r = circ_sample[2];
     }
-    for (size_t i = num_joints_ / 2; i < num_joints_; ++i)
+    else
     {
-      joints.push_back(dist(gen));
+      x = pix_dist(gen);
+      y = pix_dist(gen);
     }
 
-    SpiderParticle sp(pix_dist(gen), pix_dist(gen), r_dist(gen), w_dist(gen), h_dist(gen), joints);
-    particles_.push_back(sp);
+    particles_.push_back(randomParticle(x, y, r));
   }
 
   weights_ = reweight(particles_, obs_);
 
-  return particlesToMap(particles_);
+  return spider::particlesToMap(particles_);
 }
 
-std::map<std::string, ParticleList> ParticleFilter::update()
+spider::SpiderParticle ParticleFilter::randomParticle(const float x, const float y, const float r)
+{
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  std::uniform_real_distribution<float> pix_dist(0, 10);
+  std::normal_distribution<float> h_dist{8, 2};
+  std::normal_distribution<float> w_dist{27, 5};
+  std::normal_distribution<float> r_dist{0, 2};
+  std::normal_distribution<float> theta_dist{0, PI / 8};
+
+  std::vector<float> joints;
+  for (size_t i = 0; i < num_joints_ / 2; ++i)
+  {
+    joints.push_back(normalize_angle(i * PI / 2 + theta_dist(gen)));
+  }
+  for (size_t i = num_joints_ / 2; i < num_joints_; ++i)
+  {
+    joints.push_back(theta_dist(gen));
+  }
+
+  spider::SpiderParticle sp(x + pix_dist(gen), y + pix_dist(gen), r + r_dist(gen),
+                            w_dist(gen), h_dist(gen), joints);
+
+  return sp;
+}
+
+spider::ParticleStateList ParticleFilter::update()
 {
   // Add noise to particles, but keep the best one.
   auto best = particleEstimate();
@@ -64,10 +88,10 @@ std::map<std::string, ParticleList> ParticleFilter::update()
 
   update_count_++;
 
-  return particlesToMap(particles_);
+  return spider::particlesToMap(particles_);
 }
 
-std::vector<double> ParticleFilter::reweight(const std::vector<SpiderParticle>& particles, const Observation& obs)
+std::vector<double> ParticleFilter::reweight(const spider::SpiderList& particles, const Observation& obs)
 {
   std::vector<double> weights;
   for (auto& p: particles)
@@ -79,13 +103,13 @@ std::vector<double> ParticleFilter::reweight(const std::vector<SpiderParticle>& 
   return weights;
 }
 
-std::vector<SpiderParticle> ParticleFilter::resample(const std::vector<SpiderParticle>& particles, std::vector<double>& weights)
+spider::SpiderList ParticleFilter::resample(const spider::SpiderList& particles, std::vector<double>& weights)
 {
   std::vector<double> normalized_weights = normalizeVector(weights, true);
   // std::vector<size_t> keep = importanceSample(num_particles_, normalized_weights);
   std::vector<size_t> keep = lowVarianceSample(num_particles_, normalized_weights);
 
-  std::vector<SpiderParticle> new_particles;
+  spider::SpiderList new_particles;
   std::vector<double> new_weights;
 
   for (auto& idx : keep)
@@ -99,14 +123,13 @@ std::vector<SpiderParticle> ParticleFilter::resample(const std::vector<SpiderPar
   return new_particles;
 }
 
-std::map<std::string, ParticleList> ParticleFilter::estimate()
+spider::ParticleStateList ParticleFilter::estimate()
 {
-  std::vector<SpiderParticle> est({particleEstimate()});
-
-  return particlesToMap(est);
+  spider::SpiderList est({particleEstimate()});
+  return spider::particlesToMap(est);
 }
 
-SpiderParticle ParticleFilter::particleEstimate()
+spider::SpiderParticle ParticleFilter::particleEstimate()
 {
   if (particles_.size() != weights_.size())
   {
@@ -123,25 +146,5 @@ SpiderParticle ParticleFilter::particleEstimate()
 
   return particles_[best];
 }
-
-std::map<std::string, ParticleList> ParticleFilter::particlesToMap(const std::vector<SpiderParticle>& particles)
-{
-  std::map<std::string, ParticleList> particle_map;
-
-  for (auto& n : link_names_)
-  {
-    particle_map.insert({n, ParticleList()});
-  }
-
-  for (auto& p : particles)
-  {
-    for (auto& data : p.toPartStates())
-    {
-      particle_map[data.first].push_back(data.second);
-    }
-  }
-  return particle_map;
-}
-
 
 }  // namespace BPSandbox

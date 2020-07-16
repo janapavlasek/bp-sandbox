@@ -41,9 +41,11 @@ public:
                 // connection->send is an asynchronous function
                 int num_particles = 10;
                 if (in_msg.hasKey("num_particles")) num_particles = std::stoi(in_msg.getVal("num_particles"));
-                // auto msg = randomMessage(num_particles);
+                bool use_obs = true;
+                if (in_msg.hasKey("init_informed")) use_obs = std::stoi(in_msg.getVal("init_informed")) == 1;
+
                 ParticleMessage msg;
-                msg.setParticles(pf.init(num_particles));
+                msg.setParticles(pf.init(num_particles, use_obs));
 
                 sendParticleMessage(connection, msg);
             }
