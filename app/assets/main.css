@@ -62,6 +62,24 @@ h1,h2,h3 {
   text-align: center;
 }
 
+.status-wrapper {
+  position: relative;
+}
+
+.status {
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  width: 100px;
+  color: white;
+  padding: 0.5em 1em;
+}
+
 .progress {
   margin: 1em auto;
 }

@@ -9,8 +9,9 @@ const {
   LinearProgress,
 } = MaterialUI;
 
-var ws;
+var ws = null;
 var interval = null;
+var connectInterval = null;
 var iter_count  = 0;
 var inference_done = false;
 
@@ -19,7 +20,8 @@ var DEFAULT_NUM_PARTICLES = 50;
 var DEFAULT_NUM_ITERS = 20;
 var NUM_PARTICLES = DEFAULT_NUM_PARTICLES;
 var NUM_ITERS = DEFAULT_NUM_ITERS;
-var PERIOD = 100;
+var PERIOD = 100;           // ms
+var CONNECT_PERIOD = 1000;  // ms
 var NEW_MSG = false;
 
 // Algorithm types.
@@ -33,9 +35,6 @@ var ALGO_TYPES = {
 }
 
 // Shape info
-var CIRCLE_RADIUS = 20;
-var RECT_WIDTH = 26.6;
-var RECT_HEIGHT = 7.6;
 var ALPHA = 0.7;
 
 /*******************
@@ -102,6 +101,25 @@ function renderTheory(path) {
 /*******************
  *     BUTTONS
  *******************/
+
+function ConnectionStatus(props) {
+  var msg = "Wait";
+  var colour = "#ffff00";
+  if (props.status === WebSocket.OPEN) {
+    msg = "Connected";
+    colour = "#00ff00";
+  }
+  else if (props.status === WebSocket.CLOSED) {
+    msg = "Disconnected";
+    colour = "#ff0000";
+  }
+
+  return (
+    <div className="status" style={{backgroundColor: colour}}>
+      {msg}
+    </div>
+  );
+}
 
 function handleInit(algo_label) {
   ws.send(
@@ -291,13 +309,6 @@ class SandboxPage extends React.Component {
   constructor(props) {
     super(props);
 
-    ws = new WebSocket("ws://localhost:8080/bp");
-    ws.onmessage = (evt) => this.handleMessage(evt);
-
-    ws.onopen = function(evt) {
-      ws.send("Hello");
-    }
-
     // Jet colourmap colours.
     this.colours = ["#00007f",
                     "#0000ff",
@@ -310,6 +321,7 @@ class SandboxPage extends React.Component {
                     "#7f0000"];
 
     this.state = {
+      connection: WebSocket.CLOSED,
       algo: ALGO_TYPES.PF,
       circles: Array(NUM_PARTICLES).fill(null),
       l1: Array(NUM_PARTICLES).fill(null),
@@ -321,6 +333,44 @@ class SandboxPage extends React.Component {
       l7: Array(NUM_PARTICLES).fill(null),
       l8: Array(NUM_PARTICLES).fill(null),
     };
+
+    this.attempting_connection = false;
+
+    // Can't call connect because can't call setState before loading.
+    ws = new WebSocket("ws://localhost:8080/bp");
+    ws.onmessage = (evt) => this.handleMessage(evt);
+    ws.onopen = (evt) => { this.setState({connection: ws.readyState}); };
+    ws.onclose = (evt) => this.attemptConnection();
+    ws.onerror = (evt) => this.attemptConnection();   // Gets called if the connection fails.
+  }
+
+  connect() {
+    if (ws !== null) {
+      if (ws.readyState !== WebSocket.CLOSED) return;
+    }
+
+    ws = new WebSocket("ws://localhost:8080/bp");
+    ws.onmessage = (evt) => this.handleMessage(evt);
+    ws.onopen = (evt) => {
+      this.setState({connection: ws.readyState});
+      if (connectInterval !== null) clearInterval(connectInterval);
+      this.attempting_connection = false;
+    };
+    ws.onclose = (evt) => this.attemptConnection();
+  }
+
+  attemptConnection() {
+    if (this.attempting_connection) return;
+
+    if (this.state.connection !== ws.readyState) {
+      this.setState({connection: ws.readyState});
+    }
+
+    connectInterval = setInterval(() => {
+      this.connect();
+    }, CONNECT_PERIOD);
+
+    this.attempting_connection = true;
   }
 
   handleMessage(msg) {
@@ -344,7 +394,10 @@ class SandboxPage extends React.Component {
   render() {
     return (
       <div>
-        <AlgoForm onChange={(event) => this.handleAlgoSelect(event)} value={this.state.algo}/>
+        <div className="status-wrapper">
+          <AlgoForm onChange={(event) => this.handleAlgoSelect(event)} value={this.state.algo}/>
+          <ConnectionStatus status={this.state.connection}/>
+        </div>
         <div className="canvas">
           <img id="obs" src="app/media/obs.png" alt="" />
           <DrawCanvas circles={this.state.circles}
