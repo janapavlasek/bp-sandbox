@@ -19,6 +19,7 @@ add_executable(bp_websocket src/server.cpp
   ${SIMPLE_WS_DIR}/simple-websocket-server/client_ws.hpp
   ${SIMPLE_WS_DIR}/simple-websocket-server/server_ws.hpp
   src/inference/particle_filter.cpp
+  src/inference/nbp.cpp
 )
 target_link_libraries(bp_websocket
   ${Boost_LIBRARIES}

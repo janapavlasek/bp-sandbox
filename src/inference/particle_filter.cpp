@@ -1,4 +1,4 @@
-#include "common/inference_utils.h"
+#include "utils/inference_utils.h"
 #include "particle_filter.h"
 
 namespace BPSandbox
@@ -50,7 +50,7 @@ spider::ParticleStateList ParticleFilter::init(const int num_particles, const bo
   return spider::particlesToMap(particles_);
 }
 
-spider::SpiderParticle ParticleFilter::randomParticle(const float x, const float y, const float r)
+spider::SpiderParticle ParticleFilter::randomParticle(const double x, const double y, const double r)
 {
   std::random_device rd{};
   std::mt19937 gen{rd()};
@@ -60,10 +60,10 @@ spider::SpiderParticle ParticleFilter::randomParticle(const float x, const float
   std::normal_distribution<float> r_dist{0, 2};
   std::normal_distribution<float> theta_dist{0, PI / 8};
 
-  std::vector<float> joints;
+  std::vector<double> joints;
   for (size_t i = 0; i < num_joints_ / 2; ++i)
   {
-    joints.push_back(normalize_angle(i * PI / 2 + theta_dist(gen)));
+    joints.push_back(utils::normalize_angle(i * PI / 2 + theta_dist(gen)));
   }
   for (size_t i = num_joints_ / 2; i < num_joints_; ++i)
   {
@@ -80,7 +80,7 @@ spider::ParticleStateList ParticleFilter::update()
 {
   // Add noise to particles, but keep the best one.
   auto best = particleEstimate();
-  particles_ = jitterParticles(particles_, 2, 0.1, 2);
+  particles_ = utils::jitterParticles(particles_, 2, 0.1, 2);
   particles_.push_back(best);
 
   weights_ = reweight(particles_, obs_);
@@ -105,9 +105,9 @@ std::vector<double> ParticleFilter::reweight(const spider::SpiderList& particles
 
 spider::SpiderList ParticleFilter::resample(const spider::SpiderList& particles, std::vector<double>& weights)
 {
-  std::vector<double> normalized_weights = normalizeVector(weights, true);
-  // std::vector<size_t> keep = importanceSample(num_particles_, normalized_weights);
-  std::vector<size_t> keep = lowVarianceSample(num_particles_, normalized_weights);
+  std::vector<double> normalized_weights = utils::normalizeVector(weights, true);
+  // std::vector<size_t> keep = utils::importanceSample(num_particles_, normalized_weights);
+  std::vector<size_t> keep = utils::lowVarianceSample(num_particles_, normalized_weights);
 
   spider::SpiderList new_particles;
   std::vector<double> new_weights;

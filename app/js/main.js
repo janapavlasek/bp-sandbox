@@ -29,9 +29,9 @@ var ALGO_TYPES = {
   PF: {name: "Particle Filter",
        label: "pf",
        render: ( () => renderTheory("algorithms/pf.html") )},
-  BP: {name: "Belief Propagation",
-       label: "bp",
-       render: ( () => renderTheory(null) )},
+  NBP: {name: "Nonparametric Belief Propagation",
+        label: "nbp",
+        render: ( () => renderTheory(null) )},
 }
 
 // Shape info
@@ -81,7 +81,7 @@ function AlgoForm(props) {
         onChange={props.onChange}
       >
         <MenuItem value={ALGO_TYPES.PF}>{ALGO_TYPES.PF.name}</MenuItem>
-        <MenuItem value={ALGO_TYPES.BP}>{ALGO_TYPES.BP.name}</MenuItem>
+        <MenuItem value={ALGO_TYPES.NBP}>{ALGO_TYPES.NBP.name}</MenuItem>
       </Select>
     </FormControl>
   );

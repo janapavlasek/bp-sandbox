@@ -6,8 +6,8 @@
 #include <vector>
 #include <random>
 
-#include "common/observation.h"
-#include "common/spider_particle.h"
+#include "spider/observation.h"
+#include "spider/spider_particle.h"
 
 namespace BPSandbox
 {
@@ -23,7 +23,7 @@ public:
 
 private:
   spider::SpiderParticle particleEstimate();
-  spider::SpiderParticle randomParticle(const float x, const float y, const float r);
+  spider::SpiderParticle randomParticle(const double x, const double y, const double r);
   std::vector<double> reweight(const spider::SpiderList& particles, const Observation& obs);
   spider::SpiderList resample(const spider::SpiderList& particles, std::vector<double>& weights);
 

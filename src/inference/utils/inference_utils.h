@@ -10,9 +10,12 @@
 #include <random>
 
 #include "common_utils.h"
-#include "spider_particle.h"
+#include "../spider/spider_particle.h"
 
 namespace BPSandbox
+{
+
+namespace utils
 {
 
 template <class T>
@@ -54,7 +57,7 @@ static std::vector<double> normalizeVector(const std::vector<T>& vals, const boo
 
 static std::vector<size_t> importanceSample(const size_t num_particles,
                                             const std::vector<double>& normalized_weights,
-                                            const bool keep_best = true)
+                                            const bool keep_best = false)
 {
   std::vector<size_t> sample_ind;
 
@@ -81,7 +84,7 @@ static std::vector<size_t> importanceSample(const size_t num_particles,
   {
     float r = distribution(gen);
     int idx = 0;
-    float sum = normalized_weights[idx];
+    double sum = normalized_weights[idx];
     while (sum < r) {
       ++idx;
       sum += normalized_weights[idx];
@@ -104,11 +107,11 @@ static std::vector<size_t> lowVarianceSample(const size_t num_particles,
   std::uniform_real_distribution<float> distribution(0.0, 1.0 / num_particles);
   float r = distribution(gen);
   int idx = 0;
-  float sum = normalized_weights[idx];
+  double sum = normalized_weights[idx];
 
   for (size_t i = 0; i < num_particles; ++i)
   {
-    float u = r + i * (1. / num_particles);
+    double u = r + i * (1. / num_particles);
     while (u > sum)
     {
       idx++;
@@ -129,7 +132,7 @@ static spider::SpiderParticle jitterParticle(const spider::SpiderParticle& parti
   std::normal_distribution<float> dangle{0, jitter_angle};
   std::normal_distribution<float> dparam{0, jitter_param};
 
-  std::vector<float> new_joints;
+  std::vector<double> new_joints;
   for (auto& j : particle.joints)
   {
     new_joints.push_back(j + dangle(gen));
@@ -158,6 +161,7 @@ static spider::SpiderList jitterParticles(const spider::SpiderList& particles,
   return new_particles;
 }
 
+};  // namespace utils
 };  // namespace BPSandbox
 
 #endif  // BP_SANDBOX_INFERENCE_INFERENCE_UTILS_H

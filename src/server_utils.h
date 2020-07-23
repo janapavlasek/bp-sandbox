@@ -12,7 +12,7 @@
 using WsServer = SimpleWeb::SocketServer<SimpleWeb::WS>;
 using WsClient = SimpleWeb::SocketClient<SimpleWeb::WS>;
 
-typedef std::vector<std::vector<float> > ParticleList;
+typedef std::vector<std::vector<double> > ParticleList;
 
 
 class InMessageHelper
@@ -156,7 +156,7 @@ ParticleMessage randomMessage(const int num_particles)
     msg.particles.insert({"circles", ParticleList()});
     for (size_t i = 0; i < num_particles; ++i)
     {
-        std::vector<float> p{pix_dist(gen), pix_dist(gen)};
+        std::vector<double> p{pix_dist(gen), pix_dist(gen)};
         msg.particles["circles"].push_back(p);
     }
 
@@ -166,7 +166,7 @@ ParticleMessage randomMessage(const int num_particles)
         msg.particles.insert({name, ParticleList()});
         for (size_t i = 0; i < num_particles; ++i)
         {
-            std::vector<float> p{pix_dist(gen), pix_dist(gen), dist(gen)};
+            std::vector<double> p{pix_dist(gen), pix_dist(gen), dist(gen)};
             msg.particles[name].push_back(p);
         }
     }

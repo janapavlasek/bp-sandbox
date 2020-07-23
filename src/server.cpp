@@ -5,20 +5,31 @@
 #include <simple-websocket-server/server_ws.hpp>
 
 #include "inference/particle_filter.h"
+#include "inference/nbp.h"
 
 #include "server_utils.h"
 
 using WsServer = SimpleWeb::SocketServer<SimpleWeb::WS>;
 using WsClient = SimpleWeb::SocketClient<SimpleWeb::WS>;
 
+enum AlgoType
+{
+  PF,
+  NBP
+};
+
 class ServerHelper
 {
 public:
-    ServerHelper()
+    ServerHelper() :
+      algo(AlgoType::PF)
     {
     }
 
     BPSandbox::ParticleFilter pf;
+    BPSandbox::NBP nbp;
+    AlgoType algo;
+
 
     void sendParticleMessage(std::shared_ptr<WsServer::Connection>& connection, const ParticleMessage& msg)
     {
@@ -44,8 +55,15 @@ public:
                 bool use_obs = true;
                 if (in_msg.hasKey("init_informed")) use_obs = std::stoi(in_msg.getVal("init_informed")) == 1;
 
+                if (in_msg.hasKey("algo"))
+                {
+                  if (in_msg.getVal("algo") == "pf") algo = AlgoType::PF;
+                  else if (in_msg.getVal("algo") == "nbp") algo = AlgoType::NBP;
+                }
+
                 ParticleMessage msg;
-                msg.setParticles(pf.init(num_particles, use_obs));
+                if (algo == AlgoType::PF) msg.setParticles(pf.init(num_particles, use_obs));
+                else if (algo == AlgoType::NBP) msg.setParticles(nbp.init(num_particles, use_obs));
 
                 sendParticleMessage(connection, msg);
             }
@@ -54,7 +72,9 @@ public:
                 std::cout << "Running one update" << std::endl;
 
                 ParticleMessage msg;
-                msg.setParticles(pf.update());
+                if (algo == AlgoType::PF) msg.setParticles(pf.update());
+                else if (algo == AlgoType::NBP) msg.setParticles(nbp.update());
+
                 sendParticleMessage(connection, msg);
 
                 std::cout << "Done" << std::endl;
@@ -64,7 +84,9 @@ public:
                 std::cout << "Running one update" << std::endl;
 
                 ParticleMessage msg;
-                msg.setParticles(pf.estimate());
+                if (algo == AlgoType::PF) msg.setParticles(pf.estimate());
+                else if (algo == AlgoType::NBP) msg.setParticles(nbp.estimate());
+
                 sendParticleMessage(connection, msg);
 
                 std::cout << "Done" << std::endl;
