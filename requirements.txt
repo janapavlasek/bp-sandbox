@@ -1,0 +1,3 @@
+notebook
+Pillow
+numpy
