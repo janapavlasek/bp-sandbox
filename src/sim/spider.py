@@ -26,17 +26,34 @@ def normalize_angle(angle):
     return result - np.pi
 
 
-class Rectangle(object):
-    def __init__(self, w, h, img_size=(640, 480), tag=1):
+class Shape(object):
+    def __init__(self):
+        self.tag = 0
+
+    def set_state(self, *args):
+        raise NotImplementedError()
+
+    def mask(self, *args):
+        raise NotImplementedError()
+
+    def area(self, *args):
+        raise NotImplementedError()
+
+
+class Rectangle(Shape):
+    def __init__(self, w, h, x=0, y=0, theta=0, img_size=(640, 480), tag=1):
+        super(Rectangle, self).__init__()
+
         self.w = w
         self.h = h
+
         self.tag = tag
 
         self.img_size = img_size
 
-        self.x = self.img_size[0] / 2
-        self.y = self.img_size[1] / 2
-        self.theta = 0
+        self.x = x
+        self.y = y
+        self.theta = normalize_angle(-theta)
 
         self._mask = Image.new('L', self.img_size)
         center_x, center_y = self.img_size[0] / 2, self.img_size[1] / 2
@@ -49,6 +66,9 @@ class Rectangle(object):
         self.x = x
         self.y = y
         self.theta = normalize_angle(-theta)
+
+    def area(self):
+        return self.w * self.h
 
     def calc_tf(self):
         center_x, center_y = self.img_size[0] / 2, self.img_size[1] / 2
@@ -63,19 +83,29 @@ class Rectangle(object):
 
         return np.array(mask) == 255
 
+    def jitter(self, jitter_vars):
+        self.x += np.random.normal(0, jitter_vars[0])
+        self.y += np.random.normal(0, jitter_vars[1])
+        self.theta = normalize_angle(np.random.normal(self.theta, jitter_vars[2]))
 
-class Circle(object):
-    def __init__(self, radius, img_size=(640, 480), tag=1):
+
+class Circle(Shape):
+    def __init__(self, radius, x=0, y=0, img_size=(640, 480), tag=1):
+        super(Circle, self).__init__()
+
         self.radius = radius
         self.img_size = img_size
         self.tag = tag
 
-        self.x = self.img_size[0] / 2
-        self.y = self.img_size[1] / 2
+        self.x = x
+        self.y = y
 
     def set_state(self, x, y):
         self.x = x
         self.y = y
+
+    def area(self):
+        return np.pi * self.radius * self.radius
 
     def calc_bbox(self):
         return [self.x - self.radius, self.y - self.radius,
@@ -89,9 +119,13 @@ class Circle(object):
 
         return np.array(mask) == 255
 
+    def jitter(self, jitter_vars):
+        self.x += np.random.normal(0, jitter_vars[0])
+        self.y += np.random.normal(0, jitter_vars[1])
+
 
 class Spider(object):
-    def __init__(self, x=0, y=0, w=40, h=10, r=10, img_size=(640, 480)):
+    def __init__(self, x=0, y=0, qs=[], w=40, h=10, r=10, img_size=(640, 480)):
         self.n_links = 8
         self.w = w
         self.h = h
@@ -103,7 +137,7 @@ class Spider(object):
 
         self.root = Circle(r)
         self.links = [Rectangle(w, h, tag=i + 2) for i in range(self.n_links)]
-        self.qs = self.random_init()
+        self.qs = self.random_init() if len(qs) != self.n_links else qs
 
         self.update_links()
 
@@ -122,6 +156,9 @@ class Spider(object):
                 self.qs[i] = qs[i]
 
         self.update_links()
+
+    def area(self):
+        return self.n_links * self.links[0].area() + self.root.area()
 
     def update_links(self):
         self.root.set_state(self.x, self.y)
@@ -156,11 +193,10 @@ class Spider(object):
     def observation(self):
         obs = np.zeros(self.img_size).T
         # Stamp circle.
-        obs = np.where(self.root.mask(), np.full(self.img_size, self.root.tag).T, obs)
+        obs[self.root.mask()] = self.root.tag
         # Stamp rectangles.
         for r in self.links:
-            mask = r.mask()
-            obs = np.where(mask, np.full(self.img_size, r.tag).T, obs)
+            obs[r.mask()] = r.tag
 
         return obs
 
@@ -190,23 +226,44 @@ class Scene(object):
     def observation(self):
         obs = np.zeros(self.img_size).T
         for r in self.rects:
-            mask = r.mask()
-            obs = np.where(mask, np.full(self.img_size, r.tag).T, obs)
+            obs[r.mask()] = r.tag
         for c in self.circles:
-            mask = c.mask()
-            obs = np.where(mask, np.full(self.img_size, c.tag).T, obs)
+            obs[c.mask()] = c.tag
 
         spi_obs = self.spider.observation()
         obs = np.where(spi_obs > 0, spi_obs, obs)
 
         return obs
 
-    def image(self):
-        obs = self.observation()
+    def image(self, obs=None):
+        if obs is None:
+            obs = self.observation()
         mask = Image.fromarray(np.uint8((obs > 0) * 255))
         obs = Image.fromarray(np.uint8(cm.hsv(obs / obs.max()) * 255))
         img = Image.new('RGB', self.img_size, color="#ffffff")
         img.paste(obs, mask=mask)
+
+        return img
+
+    def display_belief(self, marginals, img=None):
+        if img is None:
+            img = self.image()
+
+        # Make the image black and white.
+        img = img.convert("L").convert("RGB")
+
+        mask = np.zeros(self.img_size).T
+        bel_obs = np.zeros(self.img_size).T
+        for bel in marginals:
+            for x in bel:
+                m = x.mask()
+                mask[m] += 1
+                bel_obs[m] = x.tag
+
+        mask = Image.fromarray(np.uint8(mask / mask.max() * 255))
+        bel_obs = Image.fromarray(np.uint8(cm.hsv(bel_obs / bel_obs.max()) * 255))
+
+        img.paste(bel_obs, mask=mask)
 
         return img
 
