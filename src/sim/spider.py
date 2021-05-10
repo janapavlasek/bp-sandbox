@@ -1,13 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from PIL import Image, ImageDraw
+from PIL import Image
 
 
-def make_rot_matrix(x, y, theta=0):
+def make_rot_matrix(theta):
+    return np.array([[np.cos(theta), np.sin(theta)],
+                     [-np.sin(theta), np.cos(theta)]])
+
+
+def make_tf_matrix(x, y, theta=0):
     tf = np.eye(3)
-    tf[0:2, 0:2] = np.array([[np.cos(theta), np.sin(theta)],
-                             [-np.sin(theta), np.cos(theta)]])
+    tf[0:2, 0:2] = make_rot_matrix(theta)
     tf[0, 2] = x
     tf[1, 2] = y
 
@@ -24,6 +28,14 @@ def normalize_angle(angle):
     if result <= 0:
         return result + np.pi
     return result - np.pi
+
+
+def keep_in_range(rows, cols, size):
+    rows, cols = np.round(rows).astype(int), np.round(cols).astype(int)
+    in_range = np.bitwise_and(rows >= 0, rows < size[1])
+    in_range = np.bitwise_and(cols >= 0, in_range)
+    in_range = np.bitwise_and(cols < size[0], in_range).nonzero()
+    return rows[in_range], cols[in_range]
 
 
 class Shape(object):
@@ -53,52 +65,54 @@ class Rectangle(Shape):
 
         self.x = x
         self.y = y
-        self.theta = normalize_angle(-theta)
+        self.theta = normalize_angle(theta)
 
-        self._mask = Image.new('L', self.img_size)
-        center_x, center_y = self.img_size[0] / 2, self.img_size[1] / 2
-        rect_coords = [center_x - self.w / 2, center_y - self.h / 2,
-                       center_x + self.w / 2, center_y + self.h / 2]
-        draw = ImageDraw.Draw(self._mask)
-        draw.rectangle(rect_coords, fill=255)
+        rows, cols = np.linspace(-h / 2, h / 2, num=h * 2), np.linspace(-w / 2, w / 2, num=w * 2)
+        rows, cols = np.repeat(rows, cols.shape[0], axis=0), np.tile(cols, (rows.shape[0],))
+        self.rows, self.cols = rows, cols
 
     def set_state(self, x, y, theta):
         self.x = x
         self.y = y
-        self.theta = normalize_angle(-theta)
+        self.theta = normalize_angle(theta)
 
     def area(self):
         return self.w * self.h
 
     def calc_tf(self):
         center_x, center_y = self.img_size[0] / 2, self.img_size[1] / 2
-        rot = make_rot_matrix(center_x, center_y, self.theta)
-        translate = make_rot_matrix(-self.x, -self.y, 0)
+        rot = make_tf_matrix(center_x, center_y, -self.theta)
+        translate = make_tf_matrix(-self.x, self.y - self.img_size[1], 0)
         tf = rot.dot(translate)
         return tf
 
     def mask(self):
-        tf = affine_from_matrix(self.calc_tf())
-        mask = self._mask.transform(self.img_size, Image.AFFINE, data=tf, fillcolor=0)
+        rot = make_rot_matrix(self.theta)
+        rotated = rot.dot(np.stack([self.cols, self.rows], axis=0))
+        rows, cols = keep_in_range(rotated[1, :] + (self.img_size[1] - self.y),
+                                   rotated[0, :] + self.x, self.img_size)
 
-        return np.array(mask) == 255
+        mask = np.zeros(self.img_size, dtype=np.bool).T
+        mask[rows, cols] = True
 
-    def jitter(self, jitter_vars):
-        self.x += np.random.normal(0, jitter_vars[0])
-        self.y += np.random.normal(0, jitter_vars[1])
-        self.theta = normalize_angle(np.random.normal(self.theta, jitter_vars[2]))
+        return mask
 
 
 class Circle(Shape):
     def __init__(self, radius, x=0, y=0, img_size=(640, 480), tag=1):
         super(Circle, self).__init__()
 
-        self.radius = radius
+        self.radius = int(round(radius))
         self.img_size = img_size
         self.tag = tag
 
         self.x = x
         self.y = y
+
+        r = np.arange(-radius, radius)
+        rows, cols = np.repeat(r, 2 * radius, axis=0), np.tile(r, (2 * radius,))
+        keep = (rows * rows + cols * cols) < radius**2
+        self.indices = (rows[keep], cols[keep])
 
     def set_state(self, x, y):
         self.x = x
@@ -107,21 +121,14 @@ class Circle(Shape):
     def area(self):
         return np.pi * self.radius * self.radius
 
-    def calc_bbox(self):
-        return [self.x - self.radius, self.y - self.radius,
-                self.x + self.radius, self.y + self.radius]
-
     def mask(self):
-        mask = Image.new('L', self.img_size)
+        rows, cols = keep_in_range(self.indices[0] + (self.img_size[1] - self.y),
+                                   self.indices[1] + self.x, self.img_size)
 
-        draw = ImageDraw.Draw(mask)
-        draw.ellipse(self.calc_bbox(), fill=255)
+        mask = np.zeros(self.img_size, dtype=np.bool).T
+        mask[rows, cols] = True
 
-        return np.array(mask) == 255
-
-    def jitter(self, jitter_vars):
-        self.x += np.random.normal(0, jitter_vars[0])
-        self.y += np.random.normal(0, jitter_vars[1])
+        return mask
 
 
 class Spider(object):
@@ -162,33 +169,33 @@ class Spider(object):
 
     def update_links(self):
         self.root.set_state(self.x, self.y)
-        tw = make_rot_matrix(self.x, self.y)
-        rect_center_tf = make_rot_matrix(self.w / 2, 0)
+        tw = make_tf_matrix(self.x, self.img_size[1] - self.y)
+        rect_center_tf = make_tf_matrix(self.w / 2, 0)
 
         for i in range(self.n_links):
             theta = self.qs[i]
             rect_tf = None
             if (i < self.n_links / 2):
                 # This is the first layer of joints, connected to the root.
-                t1 = make_rot_matrix(self.r + self.w / 2, 0)
-                rot1 = make_rot_matrix(0, 0, theta)
+                t1 = make_tf_matrix(self.r + self.w / 2, 0)
+                rot1 = make_tf_matrix(0, 0, theta)
                 rect_tf = rot1.dot(t1)
             else:
                 # This is the second layer of joints, connected to the first layer.
                 parent_joint = self.qs[i - self.n_links // 2]
                 theta = normalize_angle(theta + parent_joint)
 
-                t2 = make_rot_matrix(self.w / 2, 0)
-                rot2 = make_rot_matrix(0, 0, self.qs[i])
-                t1 = make_rot_matrix(self.r + self.w + self.w / 2, 0)
-                rot1 = make_rot_matrix(0, 0, parent_joint)
+                t2 = make_tf_matrix(self.w / 2, 0)
+                rot2 = make_tf_matrix(0, 0, self.qs[i])
+                t1 = make_tf_matrix(self.r + self.w + self.w / 2, 0)
+                rot1 = make_tf_matrix(0, 0, parent_joint)
 
                 rect_tf = rot1.dot(t1).dot(rot2).dot(t2)
 
             pt = np.array([0, 0, 1]).reshape((3, 1))
             new_pt = tw.dot(rect_tf).dot(rect_center_tf).dot(pt)
 
-            self.links[i].set_state(new_pt[0, 0], new_pt[1, 0], theta)
+            self.links[i].set_state(new_pt[0, 0], self.img_size[1] - new_pt[1, 0], theta)
 
     def observation(self):
         obs = np.zeros(self.img_size).T
@@ -201,7 +208,7 @@ class Spider(object):
         return obs
 
 
-class Scene(object):
+class SpiderScene(object):
     def __init__(self, n_rect, n_circ, img_size=(640, 480)):
         self.n_rect = n_rect
         self.n_circ = n_circ
@@ -282,7 +289,7 @@ if __name__ == '__main__':
     plt.subplot(1, 2, 2)
     plt.imshow(s.observation(), cmap=plt.get_cmap("jet"))
 
-    scene = Scene(20, 5)
+    scene = SpiderScene(20, 5)
     obs = scene.observation()
     img = scene.image()
 

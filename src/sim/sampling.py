@@ -9,5 +9,6 @@ def normalize_weights(weights, log=False):
         return np.exp(weights) / np.exp(weights).sum()
 
 
-def importance_sample(particles, weights):
-    return np.random.choice(particles, len(particles), p=weights)
+def importance_sample(weights):
+    N = len(weights)
+    return np.random.choice(np.arange(N), N, p=weights)
