@@ -79,13 +79,6 @@ class Rectangle(Shape):
     def area(self):
         return self.w * self.h
 
-    def calc_tf(self):
-        center_x, center_y = self.img_size[0] / 2, self.img_size[1] / 2
-        rot = make_tf_matrix(center_x, center_y, -self.theta)
-        translate = make_tf_matrix(-self.x, self.y - self.img_size[1], 0)
-        tf = rot.dot(translate)
-        return tf
-
     def mask(self):
         rot = make_rot_matrix(self.theta)
         rotated = rot.dot(np.stack([self.cols, self.rows], axis=0))
@@ -132,7 +125,10 @@ class Circle(Shape):
 
 
 class Spider(object):
-    def __init__(self, x=0, y=0, qs=[], w=40, h=10, r=10, img_size=(640, 480)):
+    def __init__(self, x=0, y=0, qs=[],
+                 w=40, h=10, r=10,
+                 root=None, links=None,
+                 img_size=(640, 480)):
         self.n_links = 8
         self.w = w
         self.h = h
@@ -141,12 +137,26 @@ class Spider(object):
 
         self.x = x
         self.y = y
+        self.qs = qs
 
-        self.root = Circle(r)
-        self.links = [Rectangle(w, h, tag=i + 2) for i in range(self.n_links)]
-        self.qs = self.random_init() if len(qs) != self.n_links else qs
+        if root is None or links is None:
+            # We weren't given links directly, so create them now.
+            self.root = Circle(r)
+            self.links = [Rectangle(w, h, tag=i + 2) for i in range(self.n_links)]
 
-        self.update_links()
+            if len(qs) != self.n_links:
+                self.qs = self.random_init()
+                self.update_links()
+
+        else:
+            # We were given links, so use them and their data.
+            self.root = root
+            self.links = links
+
+            self.x = self.root.x
+            self.y = self.root.y
+            self.r = self.root.radius
+            self.w, self.h = self.links[0].w, self.links[0].h
 
     def random_init(self, std=np.pi / 8):
         quarters = [i * (np.pi / 2) + np.pi / 4 for i in range(4)]
@@ -273,6 +283,31 @@ class SpiderScene(object):
         img.paste(bel_obs, mask=mask)
 
         return img
+
+    def display_estimate(self, est_spider, img=None):
+        if img is None:
+            img = self.image()
+
+        # Make the image black and white.
+        img = img.convert("L").convert("RGB")
+
+        est_obs = est_spider.observation()
+        mask = Image.fromarray(np.uint8((est_obs > 0) * 255))
+        est_obs = Image.fromarray(np.uint8(cm.hsv(est_obs / est_obs.max()) * 255))
+
+        img.paste(est_obs, mask=mask)
+
+        return img
+
+    def iou(self, est_spider):
+        # Get masks for each observation.
+        est_obs = est_spider.observation() > 0
+        true_obs = self.spider.observation() > 0
+
+        intersect = (est_obs * true_obs).sum()
+        union = np.bitwise_or(est_obs, true_obs).sum()
+
+        return intersect / union
 
 
 if __name__ == '__main__':
