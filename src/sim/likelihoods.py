@@ -1,8 +1,47 @@
 import numpy as np
+from . import spider
 
 MIN = 1e-4
 BETA = 5e-3
 GAMMA = 3
+
+
+def batch_ave_score(obs, idx, tag):
+    """Calculates batch average score over an observation at the indices
+    specified.
+
+    Args:
+        obs: Observation (H, W).
+        idx: Indices of the elements over which to average the score (N, D, 2).
+             Each index is in form (col, row).
+        tag: The label to look for in the observation (int).
+    """
+    H, W = obs.shape
+    N, D, _ = idx.shape
+    # Find which pixel coordinates are in the range of the image.
+    in_range = (idx >= np.array([0, 0])) * (idx < np.array((W, H)))
+    in_range = in_range.prod(axis=-1)   # (N, D), zero where out of range.
+
+    idx = idx.reshape(N * D, -1)        # (NxD, 2)
+    # All the coordinates that are out of range should be set to 0 to avoid
+    # out of bounds errors.
+    idx[(1 - in_range.reshape(-1)).nonzero()] = np.array([0, 0])
+
+    cols, rows = idx[:, 0], idx[:, 1]
+    # Grab the values at the rows and cols.
+    scores = obs[rows, cols].reshape((N, D))
+    # Make sure that the out of bounds elements don't show up as a match.
+    scores = (scores == tag).astype(int) * in_range
+    scores = scores.sum(axis=1)
+
+    # Total number of visible pixels.
+    total = in_range.sum(axis=1)
+    # To avoid divide by zero, set pixels that are not visible to minimum score.
+    zero_indices = (total < 1).nonzero()
+    total[zero_indices] = 1
+    scores[zero_indices] = MIN
+
+    return np.maximum(scores / total, MIN)
 
 
 def shape_ave_score(obs, shape):
@@ -14,6 +53,40 @@ def shape_ave_score(obs, shape):
     if total == 0:
         return MIN
     return max(score / total, MIN)
+
+
+def batch_circle_ave_score(obs, states, radius, tag):
+    # The score is the average sum of pixels of the appropriate tag within the
+    # shape mask.
+    H, W = obs.shape
+    c = spider.Circle(radius)
+
+    idx = np.stack((c.indices[1], c.indices[0]))
+    pixel_coords = np.array([1, -1]) * states + np.array([0, H])
+    pixel_coords = np.round(np.expand_dims(pixel_coords, -1) + idx).astype(int)
+    N, _, D = pixel_coords.shape
+    pixel_coords = pixel_coords.transpose((0, 2, 1))  # (N, D, 2)
+
+    return batch_ave_score(obs, pixel_coords, tag)
+
+
+def batch_rect_ave_score(obs, states, w, h, tag):
+    # The score is the average sum of pixels of the appropriate tag within the
+    # shape mask.
+    r = spider.Rectangle(w, h)
+
+    sin_t, cos_t = np.sin(states[:, 2]), np.cos(states[:, 2])
+    rot = np.stack((cos_t, sin_t, -sin_t, cos_t), axis=1)
+    rot = np.expand_dims(rot, axis=-1).reshape((-1, 2, 2))  # (N, 2, 2)
+
+    idx = np.stack((r.cols, r.rows), axis=0)  # (2, D)
+    idx = np.matmul(rot, idx)  # (N, 2, D)
+
+    pixel_coords = np.array([1, -1]) * states[:, :2] + np.array([0, r.img_size[1]])
+    pixel_coords = np.round(np.expand_dims(pixel_coords, -1) + idx).astype(int)
+    pixel_coords = pixel_coords.transpose((0, 2, 1))  # (N, D, 2)
+
+    return batch_ave_score(obs, pixel_coords, tag)
 
 
 def spider_ave_score(obs, spi):
@@ -117,7 +190,6 @@ def batch_arm_arm_pairwise(x_s, x_t, w):
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    from . import spider
     scene = spider.SpiderScene(20, 5)
     obs = scene.observation()
     img = scene.image()
