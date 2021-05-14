@@ -23,7 +23,7 @@ class SpiderNode(object):
 
         self.particles = particles
         self.state = state  # Matrix version of state for batch computations.
-        self.weights = [1.0 / len(particles) for _ in particles]
+        self.weights = np.full(len(particles), 1.0 / len(particles))
         self.unaries = np.zeros(len(particles))
 
         if state is None and len(particles) > 0:
@@ -32,30 +32,34 @@ class SpiderNode(object):
 
         assert self.state.shape[0] == len(self.particles)
 
-    def set_state(self, state):
-        self.state = state
+    def update_particles(self):
         for i, p in enumerate(self.particles):
             p.set_state(*self.state[i].tolist())
 
     def update_unaries(self, obs):
-        unaries = []
-        for p in self.particles:
-            unaries.append(self.unary(p, obs))
-
-        self.unaries = np.array(unaries)
+        if self.type == NodeType.CIRCLE:
+            r = self.particles[0].radius
+            self.unaries = likelihoods.batch_circle_ave_score(obs, self.state, r, self.tag)
+        elif self.type == NodeType.RECTANGLE:
+            w, h = self.particles[0].w, self.particles[0].h
+            self.unaries = likelihoods.batch_rect_ave_score(obs, self.state, w, h, self.tag)
 
     def unary(self, x_s, obs):
         return likelihoods.shape_ave_score(obs, x_s)
 
     def resample(self):
-        choice = sampling.importance_sample(self.weights)
+        choice = sampling.importance_sample(self.weights, keep_best=True)
         self.state = self.state[choice]
-        self.particles = [self.particles[idx] for idx in choice]
 
-    def jitter(self, jitter_vars):
+    def jitter(self, jitter_vars, keep_best=True):
         N, D = self.state.shape
-        state = self.state + np.stack([np.random.normal(0, jitter_vars[dim], size=N) for dim in range(D)], axis=-1)
-        self.set_state(state)
+        noise = np.stack([np.random.normal(0, jitter_vars[dim], size=N) for dim in range(D)], axis=-1)
+        if keep_best:
+            noise[0] = np.zeros(D)
+        self.state = self.state + noise
+
+    def estimate(self):
+        return self.particles[self.weights.argmax()]
 
 
 class SpiderGraph(object):
@@ -72,6 +76,8 @@ class SpiderGraph(object):
         self.nodes += [SpiderNode(i + 2, NodeType.RECTANGLE,
                                   [spider.Rectangle(self.w, self.h, tag=i + 2) for _ in range(N)]) for i in range(8)]
 
+        self.particles_updated = True
+
         self.edges = [[1, 2, 3, 4],  # Root is connected to four 1st layer arms.
                       # 1st layer arms are connected to root and a 2nd layer arm.
                       [0, 5],
@@ -87,12 +93,13 @@ class SpiderGraph(object):
         # Initialize messages.
         self.messages = [np.full((len(n_edges), N), 1.0 / N) for n_edges in self.edges]
 
+        self.proposal_states = []
+        self.proposal_unaries = []
         self.register_current()
 
     def register_current(self):
         self.proposal_states = [n.state for n in self.nodes]
         self.proposal_unaries = [n.unaries for n in self.nodes]
-        self.proposal_particles = [n.particles for n in self.nodes]
 
     def init_random_rects(self):
         states = [np.random.uniform(0, s, size=self.N) for s in self.img_size]
@@ -104,11 +111,13 @@ class SpiderGraph(object):
         return np.stack(states, axis=-1)
 
     def init_random(self, obs):
-        self.nodes[0].set_state(self.init_random_circles())
+        self.nodes[0].state = self.init_random_circles()
+        self.nodes[0].update_particles()
         for i in range(1, len(self.nodes)):
             self.nodes[i].state = self.init_random_rects()
-            self.nodes[i].set_state(self.init_random_rects())
+            self.nodes[i].update_particles()
 
+        self.particles_updated = True
         self.update_unaries(obs)
         self.register_current()
 
@@ -122,40 +131,21 @@ class SpiderGraph(object):
 
     def init_obs(self, obs):
         circ_idx = self.obs_idx_select(obs, self.nodes[0].tag, noise=10)
-        self.nodes[0].set_state(circ_idx)
+        self.nodes[0].state = circ_idx
+        self.nodes[0].update_particles()
         for i in range(1, len(self.nodes)):
             rect_idx = self.obs_idx_select(obs, self.nodes[i].tag, noise=10)
             rect_idx = np.concatenate([rect_idx, np.random.uniform(0, np.pi, size=(self.N, 1))], axis=-1)
-            self.nodes[i].set_state(rect_idx)
+            self.nodes[i].state = rect_idx
+            self.nodes[i].update_particles()
 
+        self.particles_updated = True
         self.update_unaries(obs)
         self.register_current()
 
     def update_unaries(self, obs):
         for n in self.nodes:
             n.update_unaries(obs)
-
-    def update_messages_slow(self, obs):
-        self.update_unaries(obs)
-        new_msgs = [np.zeros((len(n_edges), self.N)) for n_edges in self.edges]
-        for s, n_edges in enumerate(self.edges):
-            # Update the messages to node s from its neighbours, m_{t->s}
-            for nbr_idx, t in enumerate(n_edges):
-                edge_type = self.get_edge_type(t, s)
-                for i, x_s in enumerate(self.nodes[s].particles):
-                    m_ts = 0
-                    for j, x_t in enumerate(self.proposal_particles[t]):
-                        m_st = self.messages[t][self.get_nbr_idx(s, t), j]
-                        # Note: bel / bel_bar = p(z|xt).
-                        m_ts += self.pairwise(x_s, x_t, edge_type) * self.proposal_unaries[t][j] / m_st
-
-                    new_msgs[s][nbr_idx, i] = m_ts * 1.0 / self.N
-
-        # print("range", [(m.min(), m.max()) for m in new_msgs])
-        # print("NaNs?", [np.any(np.isnan(m)) for m in new_msgs])
-
-        self.messages = new_msgs
-        self.register_current()  # Register the current belief as the proposal.
 
     def update_messages(self, obs):
         self.update_unaries(obs)
@@ -173,6 +163,7 @@ class SpiderGraph(object):
                 m_st = np.tile(self.messages[t][s_to_t, :], (self.N,))
                 prop_unaries = np.tile(self.proposal_unaries[t], (self.N,))
 
+                # Note: bel / bel_bar = p(z|xt).
                 m_ts = batch_pair * prop_unaries / m_st
                 m_ts = m_ts.reshape(self.N, self.N).sum(axis=1) / self.N
 
@@ -189,13 +180,31 @@ class SpiderGraph(object):
     def resample(self):
         for n in self.nodes:
             n.resample()
+        self.particles_updated = False
+
+    def update_particles(self):
+        for n in self.nodes:
+            n.update_particles()
+        self.particles_updated = True
 
     def marginals(self):
+        if not self.particles_updated:
+            self.update_particles()
+
         return [n.particles for n in self.nodes]
+
+    def estimate(self):
+        if not self.particles_updated:
+            self.update_particles()
+
+        root = self.nodes[0].estimate()
+        links = [n.estimate() for n in self.nodes[1:]]
+        return spider.Spider(root=root, links=links)
 
     def jitter(self):
         for n in self.nodes:
             n.jitter(self.jitter_vars)
+        self.particles_updated = False
 
     def get_nbr_idx(self, n_from, n_to):
         for idx, n in enumerate(self.edges[n_to]):
@@ -238,13 +247,12 @@ class SpiderGraph(object):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-
     scene = spider.SpiderScene(20, 5)
     obs = scene.observation()
     img = scene.image(obs)
 
     print("Initializing")
-    g = SpiderGraph(50)
+    g = SpiderGraph(100)
     # g.init_random()
     g.init_obs(obs)
     print("Displaying belief")

@@ -9,6 +9,10 @@ def normalize_weights(weights, log=False):
         return np.exp(weights) / np.exp(weights).sum()
 
 
-def importance_sample(weights):
+def importance_sample(weights, keep_best=False):
     N = len(weights)
-    return np.random.choice(np.arange(N), N, p=weights)
+    pick = N if not keep_best else N - 1
+    sample_idx = np.random.choice(np.arange(N), pick, p=weights)
+    if keep_best:
+        sample_idx = np.concatenate([[weights.argmax()], sample_idx])
+    return sample_idx
