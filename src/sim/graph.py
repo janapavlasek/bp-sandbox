@@ -16,6 +16,11 @@ class EdgeType:
     OUTER_TO_INNER = 93
 
 
+class AlgoType:
+    SUM_PRODUCT = 999
+    MAX_PRODUCT = 998
+
+
 class SpiderNode(object):
     def __init__(self, tag, shape, particles=[], state=None):
         self.tag = tag
@@ -64,13 +69,14 @@ class SpiderNode(object):
 
 class SpiderGraph(object):
 
-    def __init__(self, N, img_size=(640, 480)):
+    def __init__(self, N, algo_type=AlgoType.SUM_PRODUCT, img_size=(640, 480)):
         self.img_size = img_size
         self.N = N
         self.jitter_vars = [10, 10, 0.1]
         self.w = 40
         self.h = 10
         self.radius = 10
+        self.algo_type = algo_type
 
         self.nodes = [SpiderNode(1, NodeType.CIRCLE, [spider.Circle(self.radius, tag=1) for _ in range(N)])]
         self.nodes += [SpiderNode(i + 2, NodeType.RECTANGLE,
@@ -156,16 +162,26 @@ class SpiderGraph(object):
                 edge_type = self.get_edge_type(t, s)
                 s_to_t = self.get_nbr_idx(s, t)
 
-                batch_xs = np.repeat(self.nodes[s].state, self.N, axis=0)
-                batch_xt = np.tile(self.proposal_states[t], (self.N, 1))
-                batch_pair = self.batch_pairwise(batch_xs, batch_xt, edge_type)
+                # Batched x_s is [(x_s,1 x N) ... (x_s,D x N)].T
+                batch_xs = np.repeat(self.nodes[s].state, self.N, axis=0)        # (N * N, Ds)
+                # Batched x_t is [(x_s,1 ... x_s,D) x N].T
+                batch_xt = np.tile(self.proposal_states[t], (self.N, 1))         # (N * N, Dt)
+                # Get the batch pairwise scores, a flattened version of the matrix
+                # where P[t[i], s[j]] is the pairwise score between particles i
+                # and j from nodes t and s respectively.
+                batch_pair = self.batch_pairwise(batch_xs, batch_xt, edge_type)  # (N * N,)
 
-                m_st = np.tile(self.messages[t][s_to_t, :], (self.N,))
-                prop_unaries = np.tile(self.proposal_unaries[t], (self.N,))
+                m_st = np.tile(self.messages[t][s_to_t, :], (self.N,))       # (N * N,)
+                prop_unaries = np.tile(self.proposal_unaries[t], (self.N,))  # (N * N,)
 
                 # Note: bel / bel_bar = p(z|xt).
-                m_ts = batch_pair * prop_unaries / m_st
-                m_ts = m_ts.reshape(self.N, self.N).sum(axis=1) / self.N
+                m_ts = batch_pair * prop_unaries / m_st                   # (N * N,)
+                m_ts = m_ts.reshape(self.N, self.N)                       # (N, N)
+
+                if self.algo_type == AlgoType.SUM_PRODUCT:
+                    m_ts = m_ts.sum(axis=1) / self.N  # (N,)
+                elif self.algo_type == AlgoType.MAX_PRODUCT:
+                    m_ts = m_ts.max(axis=1)  # (N,)
 
                 new_msgs[s][nbr_idx] = m_ts
 
